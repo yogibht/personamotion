@@ -9,6 +9,7 @@ const startPersonaMotion = async (arguments) => {
   };
 
   try {
+    const { brainInstance } = await initiateLeftBrain();
     await initiateRightBrain();
     const { container, canvas, inputManager } = await renderViewWindow({
         buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
@@ -17,20 +18,17 @@ const startPersonaMotion = async (arguments) => {
         dummyFunctions: [() => console.log("Button clicked!")],
         ENV
     });
-    const newWorld = await world({ canvas, modelURL, ENV });
+    const newWorld = await world({ brainInstance, canvas, modelURL, ENV });
+
+    window.addEventListener("keyup", async (event) => {
+      // const loadedStorageData = await loadData();
+      // console.log(loadedStorageData);
+      console.log(brainInstance.generateGraphData());
+    })
   }
   catch(err){
     console.error(err);
   }
-
-  // For Local Storage
-  // window.addEventListener("keyup", async (event) => {
-  //   const loadedStorageData = await loadData();
-  //   console.log(loadedStorageData);
-  // })
-  // $STATE.subscribe('containerNeedsUpdate', (data)=>{
-  //   console.log(data);
-  // })
 };
 
 window.startPersonaMotion = startPersonaMotion;

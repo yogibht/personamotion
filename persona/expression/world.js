@@ -1,5 +1,5 @@
 const world = async (props) => {
-  const { canvas, modelURL } = props;
+  const { brainInstance, canvas, modelURL } = props;
 
   // Initialize renderer
   const renderer = new THREE.WebGLRenderer({
@@ -49,27 +49,27 @@ const world = async (props) => {
   let postMaterial = createPostProcessingShader({
     width: canvas.width,
     height: canvas.height,
-    shader: 1, // 16 total
+    shader: UTILITIES.randomInt(1, 16), // 16 total
     colorMult: new THREE.Color(1.0, 1.0, 1.0)
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
 
-  const updateMaterial = () => {
-    postMaterial = createPostProcessingShader({
-      width: canvas.width,
-      height: canvas.height,
-      shader: UTILITIES.randomInt(1, 16), // 16 total
-      colorMult: new THREE.Color(1.0, 1.0, 1.0)
-    });
-    quad.material = postMaterial;
-    postMaterial.needsUpdate = true;
-  };
+  // const updateMaterial = () => {
+  //   postMaterial = createPostProcessingShader({
+  //     width: canvas.width,
+  //     height: canvas.height,
+  //     shader: UTILITIES.randomInt(1, 16), // 16 total
+  //     colorMult: new THREE.Color(1.0, 1.0, 1.0)
+  //   });
+  //   quad.material = postMaterial;
+  //   postMaterial.needsUpdate = true;
+  // };
 
   postScene.add(quad);
 
   let anim, animationController;
   try {
-    const entity = await prepEntityMotionAndMatter(scene, {
+    const entity = await prepEntity(scene, {
       modelURL,
       enableIK: true,
       width: canvas.width,

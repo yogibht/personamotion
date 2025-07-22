@@ -959,9 +959,42 @@ const createPostProcessingShader = (props) => {
   return postMaterial;
 }
 
+const createBrainShader = (props) => {
+  const {
+    width,
+    height,
+    shader,
+    colorMult
+  } = props;
+  const glslColorMult = `vec3(${colorMult.r.toFixed(1)}, ${colorMult.g.toFixed(1)}, ${colorMult.b.toFixed(1)})`;
+
+  const vertexShaderText = `
+    void main() {
+      gl_Position = vec4(position, 1.0);
+    }
+    `;
+
+  const fragmentShaderText = ``;
+
+  const brainMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      uTime: { value: 0.0 }
+    },
+    vertexShader: vertexShaderText,
+    fragmentShader: fragmentShaderText
+  });
+  return brainMaterial;
+}
+
+const brainViz = (scene, graph) => {
+};
+
 window.createShaderMaterial = createShaderMaterial;
 window.createDebugMaterial = createDebugMaterial;
 window.createPostProcessingShader = createPostProcessingShader;
+window.createBrainShader = createBrainShader;
+window.brainViz = brainViz;
 
 const DUMMY_DATA = {
   haiku: `

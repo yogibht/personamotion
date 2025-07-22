@@ -1,4 +1,4 @@
-const prepEntityMotionAndMatter = async (scene, props) => {
+const prepEntity = async (scene, props) => {
   try {
     const matter = await window.prepEntityMatter(scene, props);
     const motion = await window.prepEntityMotion(matter, scene, props);
@@ -26,4 +26,4 @@ const prepEntityMotionAndMatter = async (scene, props) => {
   }
 };
 
-window.prepEntityMotionAndMatter = prepEntityMotionAndMatter;
+window.prepEntity = prepEntity;
