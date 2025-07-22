@@ -49,7 +49,7 @@ const world = async (props) => {
   let postMaterial = createPostProcessingShader({
     width: canvas.width,
     height: canvas.height,
-    shader: 0, // 16 total
+    shader: 1, // 16 total
     colorMult: new THREE.Color(1.0, 1.0, 1.0)
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
@@ -82,56 +82,32 @@ const world = async (props) => {
     animationController = entity.animationController;
     animationController.setFPS(60);
 
-    animationController.createIKAnimation('pointAt', {
-      duration: 1.5,
-      chains: {
-        'mixamorigLeftHand': {
-          x: (t) => Math.sin(t * Math.PI * 2),
-          y: (t) => 1.5 + 0.5 * Math.sin(t * Math.PI),
-          z: 1.0
-        }
-      }
-    });
-
-    animationController.createIKAnimation('pointAndMove', {
-      duration: 3.0,
-      loop: true,
-      chains: {
-        'mixamorigLeftHand': {
-          x: (t) => Math.sin(t * Math.PI * 2),
-          y: (t) => 1.5 + 0.3 * Math.sin(t * Math.PI * 4),
-          z: 1.0
-        }
-      },
-      motion: {
-        position: {
-          x: (t) => Math.sin(t * Math.PI * 2) * 2,
-          y: (t) => 0.2 * Math.sin(t * Math.PI * 8),
-          z: (t) => Math.cos(t * Math.PI * 2) * 2
-        },
-        rotation: {
-          y: (t) => t * Math.PI * 2
-        },
-        scale: {
-          x: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
-          y: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
-          z: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4)
-        }
-      }
-    });
-
-    animationController.createIKAnimation('walkForward', {
-      duration: 2.0,
-      loop: true,
-      motion: {
-        position: {
-          z: (t) => -t * 5
-        },
-        rotation: {
-          x: (t) => 0.05 * Math.sin(t * Math.PI * 8)
-        }
-      }
-    });
+    // animationController.createIKAnimation('pointAndMove', {
+    //   duration: 3.0,
+    //   loop: true,
+    //   chains: {
+    //     'mixamorigLeftHand': {
+    //       x: (t) => Math.sin(t * Math.PI * 2),
+    //       y: (t) => 1.5 + 0.3 * Math.sin(t * Math.PI * 4),
+    //       z: 1.0
+    //     }
+    //   },
+    //   motion: {
+    //     position: {
+    //       x: (t) => Math.sin(t * Math.PI * 2) * 2,
+    //       y: (t) => 0.2 * Math.sin(t * Math.PI * 8),
+    //       z: (t) => Math.cos(t * Math.PI * 2) * 2
+    //     },
+    //     rotation: {
+    //       y: (t) => t * Math.PI * 2
+    //     },
+    //     scale: {
+    //       x: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
+    //       y: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
+    //       z: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4)
+    //     }
+    //   }
+    // });
 
     // window.addEventListener('keyup', (e) => {
     //   if (e.key === 'w') {
@@ -231,15 +207,9 @@ const world = async (props) => {
     if (response.animationData) {
       const anim = response.animationData;
 
-      const animationOptions = {
-        duration: anim.duration || 2.0,
-        loop: anim.loop || false,
-        chains: eval(anim.chains) || {},
-        motion: anim.motion || {}
-      };
-      animationController.createIKAnimation(anim.animationName, animationOptions);
-
-      animationController.play(anim.animationName);
+      const allAnimations = animationController.getAnimations();
+      const animationName = allAnimations[UTILITIES.randomInt(1, allAnimations.length)];
+      animationController.play(animationName);
     }
   };
 
