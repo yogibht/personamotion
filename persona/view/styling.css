@@ -1,0 +1,175 @@
+/* Main Container */
+#personasync {
+    position: fixed;
+    z-index: 10000;
+    font-family: sans-serif;
+    height: 50vh;
+    width: 50vh;
+    bottom: 10px;
+    right: 10px;
+    background-color: transparent !important;
+    border: 2px solid #000;
+    overflow: hidden;
+    resize: none;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    min-height: 200px;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+/* Content Area */
+#personasync-content {
+    position: relative;
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Response Container - Behind everything */
+.response-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    padding: 15px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+/* Canvas - Full background */
+#personawindow {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+/* Resize Handle */
+#resizeHandle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background-color: #4285f4;
+    left: 0;
+    top: 0;
+    cursor: nwse-resize;
+    z-index: 30;
+    display: none;
+}
+
+#resizeHandle:hover {
+    background-color: #0d47a1;
+}
+
+/* UI Container */
+#radialui {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+}
+
+/* Buttons */
+.radialbutton {
+    position: absolute;
+    background: rgba(255, 255, 255, 1);
+    border: 2px solid #888;
+    border-radius: 50%;
+    text-align: center;
+    color: #000;
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transform-origin: center center;
+    will-change: transform;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.radialbutton:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.radialicon {
+    font-size: calc(var(--button-size) * 0.5);
+    line-height: 1.2;
+}
+
+.radiallabel {
+    display: block;
+    font-size: calc(var(--button-size) * 0.25);
+    margin-top: -4px;
+    white-space: nowrap;
+}
+
+/* Prompt Box */
+#promptBox {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    min-width: 150px;
+    height: 2.5em;
+    padding: 0.5em;
+    font-size: 1em;
+    border: 1px solid #aaa;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    pointer-events: auto;
+    display: none;
+    z-index: 20;
+    bottom: 20px;
+}
+
+/* Animations (keep existing) */
+@keyframes sway {
+    0%,
+    100% {
+        transform: translateX(-50%) rotate(0deg);
+    }
+    50% {
+        transform: translateX(-50%) rotate(3deg);
+    }
+}
+
+@keyframes radialSwayCW {
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+    50% {
+        transform: rotate(6deg);
+    }
+}
+
+@keyframes radialSwayCCW {
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+    50% {
+        transform: rotate(-6deg);
+    }
+}
+
+.radialbutton.sway-cw {
+    animation: radialSwayCW 2s ease-in-out infinite;
+}
+
+.radialbutton.sway-ccw {
+    animation: radialSwayCCW 2s ease-in-out infinite;
+}
+
+#promptBox.swaying {
+    animation: sway 3s ease-in-out infinite;
+    transform-origin: center bottom;
+}

@@ -1,0 +1,55 @@
+{
+  "manifest_version": 2,
+  "name": "PersonaMotion",
+  "version": "1.0",
+  "description": "Persona Motion",
+  "permissions": ["storage", "activeTab", "tabs", "<all_urls>"],
+  "background": {
+    "scripts": ["extension/browserevents.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "lib/three.min.js",
+        "lib/TrackballControls.js",
+        "lib/GLTFLoader.js",
+        "persona/toolbelt/utilities.js",
+        "persona/toolbelt/inputmanager.js",
+        "persona/toolbelt/threehelper.js",
+        "persona/brains/right.js",
+        "persona/expression/aesthetics.js",
+        "persona/expression/world.js",
+        "persona/expression/matter.js",
+        "persona/expression/motion.js",
+        "persona/expression/entity.js",
+        "persona/identity/memory.js",
+        "persona/identity/dna.js",
+        "persona/view/window.js",
+        "persona/begin.js",
+        "extension/runner.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    "configurator/*",
+    "compute/worker.js",
+    "lib/*",
+    "persona/*",
+    "models/*.glb",
+    "env.json"
+  ],
+  "browser_action": {
+    "default_popup": "configurator/welcome.html",
+    "default_icon": "icon.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "dev@personasync",
+      "strict_min_version": "109.0"
+    }
+  }
+}
