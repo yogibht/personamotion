@@ -70,7 +70,7 @@ const world = async (props) => {
   let anim, animationController, networkViz, networkVizToggleState = false;
   try {
     const brainData = brainInstance.generateGraphData();
-    networkViz = createGalaxyNetworkViz(scene, brainData);
+    networkViz = createLivingBrainViz(scene, brainData, camera);
     networkViz.toggleAll(networkVizToggleState);
 
     const entity = await prepEntity(scene, {

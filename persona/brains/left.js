@@ -116,62 +116,47 @@ const RLHFBrain = () => {
       return net.run(input);
     },
 
-    /**
-     * Export structure for graph rendering
-     */
-     generateGraphData() {
-       const json = net.toJSON();
-       const layers = json.layers;
-       const activationFn = json.activation || 'sigmoid';
-       const graph = {
-         nodes: [],
-         links: []
-       };
+    generateGraphData() {
+      const json = net.toJSON(); // Always get fresh weights
+      const layers = json.layers;
+      const graph = { nodes: [], links: [] };
+      const nodeIndexMap = [];
 
-       const nodeIndexMap = [];
+      // Build nodes
+      layers.forEach((layer, layerIdx) => {
+        const size = layer.biases?.length || 0;
+        const layerMap = {};
+        for (let neuronIdx = 0; neuronIdx < size; neuronIdx++) {
+          const id = `L${layerIdx}N${neuronIdx}`;
+          graph.nodes.push({
+            id,
+            layer: layerIdx,
+            neuron: neuronIdx,
+            bias: layer.biases?.[neuronIdx] ?? 0,
+            activation: json.activation || 'relu'
+          });
+          layerMap[neuronIdx] = id;
+        }
+        nodeIndexMap[layerIdx] = layerMap;
+      });
 
-       // First, create nodes and track nodeId -> index per layer
-       layers.forEach((layer, layerIdx) => {
-         const size = layer.biases?.length || 0;
-         const layerMap = {};
+      // Build links with current weights
+      for (let layerIdx = 1; layerIdx < layers.length; layerIdx++) {
+        const weights = layers[layerIdx].weights;
+        if (!weights) continue;
+        for (let i = 0; i < weights.length; i++) {
+          for (let j = 0; j < weights[i].length; j++) {
+            graph.links.push({
+              source: nodeIndexMap[layerIdx - 1][j],
+              target: nodeIndexMap[layerIdx][i],
+              weight: weights[i][j] // ✅ This will be updated
+            });
+          }
+        }
+      }
 
-         for (let neuronIdx = 0; neuronIdx < size; neuronIdx++) {
-           const id = `L${layerIdx}N${neuronIdx}`;
-
-           graph.nodes.push({
-             id,
-             layer: layerIdx,
-             neuron: neuronIdx,
-             bias: layer.biases?.[neuronIdx] ?? null,
-             activation: activationFn
-           });
-
-           layerMap[neuronIdx] = id;
-         }
-
-         nodeIndexMap[layerIdx] = layerMap;
-       });
-
-       // Then, create links using weight matrices
-       for (let layerIdx = 1; layerIdx < layers.length; layerIdx++) {
-         const currentLayer = layers[layerIdx];
-         const weights = currentLayer.weights; // shape: [currentNeurons][prevNeurons]
-
-         if (!weights || !weights.length) continue;
-
-         for (let i = 0; i < weights.length; i++) { // current layer neuron
-           for (let j = 0; j < weights[i].length; j++) { // previous layer neuron
-             graph.links.push({
-               source: nodeIndexMap[layerIdx - 1][j],
-               target: nodeIndexMap[layerIdx][i],
-               weight: weights[i][j]
-             });
-           }
-         }
-       }
-
-       return graph;
-     }
+      return graph;
+    }
 
   };
 };
@@ -181,24 +166,17 @@ const initiateLeftBrain = async () => {
 
   let counter = 0;
   const startThinking = (now) => {
-    // Dynamically add training data every 60 frames
     if (counter % 60 === 0) {
       const inputToken = Array(128).fill(0).map((_, i) => (i === (counter % 128) ? 1 : 0));
       const outputToken = Array(10).fill(0).map((_, i) => (i === (counter % 10) ? 1 : 0));
       brainInstance.addTrainingData(inputToken, outputToken, `live_${counter}`, 1.0);
     }
 
-    // Train every frame
     brainInstance.trainStep();
-
-    // Predict every frame
-    const testInput = Array(128).fill(0).map((_, i) => (i === (counter % 128) ? 1 : 0));
-    const result = brainInstance.predict(testInput);
-    // console.log(`Frame ${counter}`, result);
 
     counter++;
     requestAnimationFrame(startThinking);
-  }
+  };
   startThinking();
 
   const ret = {

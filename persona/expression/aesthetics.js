@@ -959,221 +959,189 @@ const createPostProcessingShader = (props) => {
   return postMaterial;
 }
 
-// Galaxy Network Visualization with Three.js
-const createGalaxyNetworkViz = (scene, initialGraph, camera) => {
-  const MAX_NODES     = 4096;
-  const GALAXY_RADIUS = 7.0;
-  const GALAXY_HEIGHT = 0.15;
-  const ARM_COUNT     = 3;
-  const ARM_TWIST     = 0.4 * Math.PI;
+/*  createLivingBrainViz  —  sphere + shader */
+const createLivingBrainViz = (scene, initialGraph, camera) => {
+  const MAX_NODES = 2048;
+  const MAX_LINKS = 4096;
 
-  const prevWeightSums = new Map();
-  let rotateEnabled = true;
-  let nodePoints, starPoints;
+  const group = new THREE.Group();
+  group.position.y = 1.5; // lift it up
+  scene.add(group);
 
-  function hsvToRgb(h, s, v) {
-    let f = (n, k = (n + h * 6) % 6) =>
-      v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
-    return [f(5), f(3), f(1)];
-  }
+  /* ---------- buffers / textures ---------- */
+  const nodeBuf = new Float32Array(MAX_NODES * 4); // x,y,z,bias
+  const linkBuf = new Float32Array(MAX_LINKS * 7); // x1,y1,z1,x2,y2,z2,weight
+  const nodeTex = new THREE.DataTexture(nodeBuf, MAX_NODES, 1, THREE.RGBAFormat, THREE.FloatType);
+  const linkTex = new THREE.DataTexture(linkBuf, MAX_LINKS, 1, THREE.RGBAFormat, THREE.FloatType);
 
-  const galaxyGroup = new THREE.Group();
-  galaxyGroup.position.set(0, 4, -6);
-  galaxyGroup.rotation.x = -0.2;
-  galaxyGroup.scale.setScalar(0.3);
-  scene.add(galaxyGroup);
+  /* ---------- uniforms ---------- */
+  const uniforms = {
+    nodeTex: { value: nodeTex },
+    linkTex: { value: linkTex },
+    nodeCnt: { value: 0 },
+    linkCnt: { value: 0 },
+    time:    { value: 0 },
+    res:     { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    proj:    { value: new THREE.Matrix4() },
+    view:    { value: new THREE.Matrix4() }
+  };
 
-  // Starfield
-  const starGeometry = new THREE.BufferGeometry();
-  const starCount = 5000;
-  const starPos = new Float32Array(starCount * 3);
-  const starCol = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i++) {
-    const i3 = i * 3;
-    const radius = Math.pow(Math.random(), 0.6) * GALAXY_RADIUS * 1.5;
-    const theta = (Math.random() * ARM_COUNT * 2 * Math.PI) + radius * ARM_TWIST / GALAXY_RADIUS;
-    const x = radius * Math.cos(theta);
-    const y = (Math.random() - 0.5) * GALAXY_HEIGHT * 2;
-    const z = radius * Math.sin(theta);
-    starPos[i3] = x;
-    starPos[i3 + 1] = y;
-    starPos[i3 + 2] = z;
-    const tint = 0.3 + Math.random() * 0.7;
-    starCol[i3] = tint * (0.6 + 0.4 * Math.random());
-    starCol[i3 + 1] = tint * (0.7 + 0.3 * Math.random());
-    starCol[i3 + 2] = tint;
-  }
-  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  starGeometry.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
-  starPoints = new THREE.Points(starGeometry, new THREE.PointsMaterial({
-    size: 0.02,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.5
-  }));
-  galaxyGroup.add(starPoints);
-
-  // Node flat point mesh
-  const nodeGeometry = new THREE.BufferGeometry();
-  const posArray   = new Float32Array(MAX_NODES * 3);
-  const colorArray = new Float32Array(MAX_NODES * 3);
-  const pulseArray = new Float32Array(MAX_NODES);
-  const sizeArray  = new Float32Array(MAX_NODES);
-
-  const posAttr   = new THREE.BufferAttribute(posArray, 3);
-  const colAttr   = new THREE.BufferAttribute(colorArray, 3);
-  const pulseAttr = new THREE.BufferAttribute(pulseArray, 1);
-  const sizeAttr  = new THREE.BufferAttribute(sizeArray, 1);
-
-  nodeGeometry.setAttribute('position', posAttr);
-  nodeGeometry.setAttribute('nodeColor', colAttr);
-  nodeGeometry.setAttribute('pulse', pulseAttr);
-  nodeGeometry.setAttribute('size', sizeAttr);
-
-  const nodeMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0.0 },
-      sizeScale: { value: 10.0 }
-    },
+  /* ---------- sphere mesh ---------- */
+  const sphereGeo = new THREE.SphereGeometry(1, 128, 64);
+  const sphereMat = new THREE.ShaderMaterial({
+    uniforms,
     vertexShader: `
-      attribute vec3 nodeColor;
-      attribute float pulse;
-      attribute float size;
-      varying vec3 vColor;
-      varying float vPulse;
+      varying vec3 vPos;
+      varying vec3 vNorm;
       uniform float time;
-      void main() {
-        vColor = nodeColor;
-        vPulse = pulse;
-        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * (1.0 + sin((time + vPulse) * 20.0) * 0.4);
-        gl_Position = projectionMatrix * mvPosition;
+      void main(){
+        vPos = position;
+        vNorm = normalize(position);
+        /* slow breathing */
+        float breath = sin(time * 1.57) * 0.15 + 1.0;
+        vec3 pos = position * breath;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }`,
     fragmentShader: `
-      varying vec3 vColor;
-      void main() {
-        float r = length(gl_PointCoord - vec2(0.5));
-        float alpha = smoothstep(0.5, 0.0, r);
-        gl_FragColor = vec4(vColor, alpha);
+      precision highp float;
+      uniform sampler2D nodeTex, linkTex;
+      uniform float nodeCnt, linkCnt, time;
+      varying vec3 vPos; varying vec3 vNorm;
+
+      const float MAX_N = ${MAX_NODES.toFixed(1)};
+      const float MAX_L = ${MAX_LINKS.toFixed(1)};
+      const float NODE_R = 0.12;
+      const float LINK_MIN = 0.005;
+      const float LINK_MAX = 0.08;
+
+      /* noise helper */
+      float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+
+      /* spherical distance */
+      float spDist(vec3 a, vec3 b){ return acos(clamp(dot(a, b), -1.0, 1.0)); }
+
+      void main(){
+        vec3 col = vec3(0.0);
+
+        /* wobble surface */
+        float wobble = sin(time * 4.0 + hash(vNorm * 10.0) * 20.0) * 0.02;
+
+        /* draw links */
+        for(float i = 0.0; i < MAX_L; i++){
+          if(i >= linkCnt) break;
+          vec3 p0 = texelFetch(linkTex, ivec2(i, 0), 0).xyz;
+          vec3 p1 = texelFetch(linkTex, ivec2(i, 1), 0).xyz;
+          float w = texelFetch(linkTex, ivec2(i, 2), 0).x;
+
+          float arc = spDist(p0, p1);
+          float d   = spDist(vNorm, p0) + spDist(vNorm, p1) + wobble;
+          float thick = mix(LINK_MIN, LINK_MAX, abs(w) / 3.0);
+          float alpha = smoothstep(arc + thick, arc, d) * clamp(abs(w) * 2.0, 0.2, 1.0);
+          vec3 linkCol = w > 0.0 ? vec3(0.0, 1.0, 1.0) : vec3(1.0, 0.0, 1.0);
+          col += linkCol * alpha;
+        }
+
+        /* draw nodes */
+        for(float j = 0.0; j < MAX_N; j++){
+          if(j >= nodeCnt) break;
+          vec3 nPos = texelFetch(nodeTex, ivec2(j, 0), 0).xyz;
+          float bias = texelFetch(nodeTex, ivec2(j, 0), 0).w;
+          float d   = spDist(vNorm, nPos) + wobble;
+          float pulse = 1.0 + 0.25 * sin(time * 5.0 + j * 0.3);
+          float alpha = smoothstep(NODE_R * 1.3, NODE_R, d) * pulse * 0.8;
+          vec3 nodeCol = bias > 0.0 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+          col += nodeCol * alpha;
+        }
+
+        gl_FragColor = vec4(col, 1.0);
       }`,
     transparent: true,
     blending: THREE.AdditiveBlending,
-    depthWrite: false
+    depthWrite: false,
+    side: THREE.DoubleSide
   });
+  const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+  group.add(sphereMesh);
 
-  nodePoints = new THREE.Points(nodeGeometry, nodeMaterial);
-  galaxyGroup.add(nodePoints);
-
+  /* ---------- helper layout ---------- */
   const nodeMap = new Map();
-  const getSpiralPos = (index, total) => {
-    const ratio = index / total;
-    const radius = Math.sqrt(ratio) * GALAXY_RADIUS * 0.9;
-    const armIdx = Math.floor(Math.random() * ARM_COUNT);
-    const armBase = armIdx * 2 * Math.PI / ARM_COUNT;
-    const theta = armBase + radius * ARM_TWIST / GALAXY_RADIUS;
-    return new THREE.Vector3(
-      radius * Math.cos(theta),
-      (Math.random() - 0.5) * GALAXY_HEIGHT,
-      radius * Math.sin(theta)
-    );
-  };
+  const layerCounts = new Map();
 
-  const updateGraph = (graph) => {
+  function spherePos(i, total, layer, maxLayer) {
+    const y = 1.0 - 2.0 * (i / total);
+    const radius = Math.sqrt(1.0 - y * y);
+    const theta = Math.PI * (3.0 - Math.sqrt(5.0)) * i + layer * 0.2;
+    const x = radius * Math.cos(theta);
+    const z = radius * Math.sin(theta);
+    return new THREE.Vector3(x, y, z);
+  }
+
+  /* ---------- update graph ---------- */
+  function updateGraph(graph){
     const nodes = graph.nodes || [];
     const links = graph.links || [];
+
     const nCount = Math.min(nodes.length, MAX_NODES);
+    const lCount = Math.min(links.length, MAX_LINKS);
 
-    const linkCount = new Map();
-    const weightSum = new Map();
+    /* id → index map */
+    const id2idx = new Map(nodes.map((n,i)=>[n.id,i]));
 
-    // Step 1: Build link count and weight sum per target node
-    for (const link of links) {
-      const tgt = typeof link.target === 'object' ? link.target.id : link.target;
-      linkCount.set(tgt, (linkCount.get(tgt) || 0) + 1);
-      weightSum.set(tgt, (weightSum.get(tgt) || 0) + Math.abs(link.weight || 0));
+    /* pack nodes */
+    for (let i = 0; i < nCount; i++){
+      const pos = spherePos(i, nCount, nodes[i].layer, 6);
+      nodeBuf[i*4+0] = pos.x;
+      nodeBuf[i*4+1] = pos.y;
+      nodeBuf[i*4+2] = pos.z;
+      nodeBuf[i*4+3] = nodes[i].bias || 0;
+      nodeMap.set(nodes[i].id, pos);
     }
+    nodeTex.needsUpdate = true;
 
-    // Step 2: Determine max degree
-    let maxDegree = 0;
-    for (const count of linkCount.values()) {
-      if (count > maxDegree) maxDegree = count;
+    /* pack links */
+    let lIdx = 0;
+    for (const l of links){
+      if (lIdx >= MAX_LINKS) break;
+      const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+      const dstId = typeof l.target === 'object' ? l.target.id : l.target;
+      const i0 = id2idx.get(srcId);
+      const i1 = id2idx.get(dstId);
+      if (i0 === undefined || i1 === undefined) continue;
+
+      nodeMap.get(srcId).toArray(linkBuf, lIdx*7);
+      nodeMap.get(dstId).toArray(linkBuf, lIdx*7+3);
+      linkBuf[lIdx*7+6] = l.weight || 0.0;
+      lIdx++;
     }
+    linkTex.needsUpdate = true;
 
-    // Step 3: Place and color each node
-    for (let i = 0; i < nCount; i++) {
-      const node = nodes[i];
-      const id = node.id;
-      const pos = getSpiralPos(i, nCount);
-      nodeMap.set(id, pos);
+    /* push to shader */
+    sphereMat.uniforms.nodeCnt.value = nCount;
+    sphereMat.uniforms.linkCnt.value = lIdx;
+  }
 
-      posArray[i * 3]     = pos.x;
-      posArray[i * 3 + 1] = pos.y;
-      posArray[i * 3 + 2] = pos.z;
+  /* ---------- animation ---------- */
+  function animate(cam, t){
+    sphereMat.uniforms.time.value = t * 0.001;
+    sphereMat.uniforms.res.value.set(window.innerWidth, window.innerHeight);
+    sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
+    sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
+  }
 
-      const degree = linkCount.get(id) || 0;
-      const sumW   = weightSum.get(id) || 0;
-      const prevW  = prevWeightSums.get(id) || 0;
-      const delta  = Math.abs(sumW - prevW);
-      prevWeightSums.set(id, sumW);
-
-      const tNorm = maxDegree > 0 ? degree / maxDegree : 0.0;
-      const tSmooth = Math.pow(tNorm, 0.8);
-
-      const r = THREE.MathUtils.lerp(0.0, 1.0, tSmooth);
-      const g = THREE.MathUtils.lerp(1.0, 0.0, tSmooth);
-      const b = 0.0;
-
-      colorArray[i * 3]     = r;
-      colorArray[i * 3 + 1] = g;
-      colorArray[i * 3 + 2] = b;
-
-      pulseArray[i] = delta > 0.01 ? Math.random() : 0.0;
-      sizeArray[i]  = 8.0 + degree * 0.5;
-    }
-
-    posAttr.needsUpdate = true;
-    colAttr.needsUpdate = true;
-    pulseAttr.needsUpdate = true;
-    sizeAttr.needsUpdate = true;
-    nodeGeometry.setDrawRange(0, nCount);
-  };
-
-  const animate = (camera, time) => {
-    if (rotateEnabled) {
-      galaxyGroup.rotation.y = time * 0.0001;
-    }
-    nodeMaterial.uniforms.time.value = time * 0.0001;
-  };
-
-  updateGraph(initialGraph);
+  updateGraph(initialGraph || {nodes:[],links:[]});
 
   return {
     updateGraph,
     animate,
-    updateDynamicNodeActivity: () => {},
-    setScale: (s) => galaxyGroup.scale.setScalar(s),
-    toggleNodes: (visible) => {
-      if (nodePoints) nodePoints.visible = visible;
-    },
-    toggleStarfield: (visible) => {
-      if (starPoints) starPoints.visible = visible;
-    },
-    toggleRotation: (enabled) => {
-      rotateEnabled = enabled;
-    },
-    toggleAll: (visible) => {
-      if (nodePoints) nodePoints.visible = visible;
-      if (starPoints) starPoints.visible = visible;
-      rotateEnabled = visible;
-    }
+    setScale: (s)=>sphereMesh.scale.setScalar(s),
+    toggleAll: (v)=>{sphereMesh.visible = v;}
   };
 };
-
 
 window.createShaderMaterial = createShaderMaterial;
 window.createDebugMaterial = createDebugMaterial;
 window.createPostProcessingShader = createPostProcessingShader;
-window.createGalaxyNetworkViz = createGalaxyNetworkViz;
+window.createLivingBrainViz = createLivingBrainViz;
 
 const DUMMY_DATA = {
   haiku: `
