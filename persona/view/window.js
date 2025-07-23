@@ -14,14 +14,12 @@ const UIComponents = {
     buttons: {
         render: (container, radialContainer, options = {}) => {
             const buttons = [
-                { id: 'btn1', icon: '⭐', label: 'Star' },
-                { id: 'btn2', icon: '⚡', label: 'Bolt' },
-                { id: 'btn3', icon: '❤️', label: 'Love' },
-                { id: 'btn4', icon: '🌙', label: 'Moon' },
-                { id: 'btn5', icon: '☀️', label: 'Sun' }
-            ].map(btn => ({
+                { id: 'brain_btn', icon: '🌌', label: 'brain' },
+                { id: 'keep_this_btn', icon: '🔥', label: 'keep_this' },
+                { id: 'no_good_btn', icon: '😭', label: 'no_good' },
+            ].map((btn, indx) => ({
                 ...btn,
-                onClick: options.dummyFunctions?.[0] || (() => console.log(`${btn.id} clicked`))
+                onClick: options.execFunctions?.[indx] || (() => console.log(`${btn.id} clicked`))
             }));
 
             radialContainer.innerHTML = '';
@@ -153,7 +151,7 @@ const setupWindow = async (options) => {
 
     // Initialize UI components
     UIComponents.buttons.render(container, radialContainer, {
-        dummyFunctions: options.dummyFunctions,
+        execFunctions: options.execFunctions,
         buttonLayout: options.buttonLayout,
         buttonSizePercent: options.buttonSizePercent
     });
@@ -206,7 +204,7 @@ const setupWindow = async (options) => {
 
         if (radialContainer.style.display === 'block') {
             UIComponents.buttons.render(container, radialContainer, {
-                dummyFunctions: options.dummyFunctions,
+                execFunctions: options.execFunctions,
                 buttonLayout: options.buttonLayout
             });
         }
@@ -234,7 +232,7 @@ const setupWindow = async (options) => {
 
         if (isVisible) {
             UIComponents.buttons.render(container, radialContainer, {
-                dummyFunctions: options.dummyFunctions,
+                execFunctions: options.execFunctions,
                 buttonLayout: options.buttonLayout
             });
         }

@@ -960,279 +960,189 @@ const createPostProcessingShader = (props) => {
 }
 
 // Galaxy Network Visualization with Three.js
-const createGalaxyNetworkViz = (scene, initialGraph) => {
-  const MAX_NODES = 4096;
-  const MAX_CONNECTIONS = 50000;
-  const GALAXY_RADIUS = 8;
-  const GALAXY_HEIGHT = 1.5;
-  const EARTH_TILT = 23.5 * Math.PI / 180;
+const createGalaxyNetworkViz = (scene, initialGraph, camera) => {
+  const MAX_NODES     = 4096;
+  const GALAXY_RADIUS = 7.0;
+  const GALAXY_HEIGHT = 0.15;
+  const ARM_COUNT     = 3;
+  const ARM_TWIST     = 0.4 * Math.PI;
 
-  // Galaxy group with tilt
-  const galaxyGroup = new THREE.Group();
-  galaxyGroup.position.set(0, 2, -2);
-  galaxyGroup.rotation.z = EARTH_TILT;
-  scene.add(galaxyGroup);
+  const prevWeightSums = new Map();
+  let rotateEnabled = true;
+  let nodePoints, starPoints;
 
-  // Declare nodePosMap at the top level
-  const nodePosMap = new Map();
-
-  // Enhanced starfield with more density near center
-  const starGeometry = new THREE.BufferGeometry();
-  const starCount = 1000;
-  const starPositions = new Float32Array(starCount * 3);
-  const starColors = new Float32Array(starCount * 3);
-
-  for (let i = 0; i < starCount; i++) {
-    const i3 = i * 3;
-    // Spiral galaxy distribution
-    const arm = Math.floor(Math.random() * 4); // 4 spiral arms
-    const angle = arm * Math.PI / 2 + Math.random() * 0.5;
-    const distance = Math.pow(Math.random(), 2) * 15; // More stars near center
-
-    // Spiral arm shape with some randomness
-    const radius = distance * (0.8 + Math.random() * 0.4);
-    const height = (Math.random() - 0.5) * 2;
-
-    starPositions[i3] = radius * Math.cos(angle + distance * 0.3);
-    starPositions[i3 + 1] = height * 0.5;
-    starPositions[i3 + 2] = radius * Math.sin(angle + distance * 0.3);
-
-    // Star colors - cooler (bluer) in center, warmer (yellower) in arms
-    const coreFactor = 1 - (distance / 15);
-    const intensity = 0.3 + Math.random() * 0.7;
-
-    starColors[i3] = intensity * (0.5 + coreFactor * 0.5); // More blue in center
-    starColors[i3 + 1] = intensity * (0.7 - coreFactor * 0.3); // Balanced
-    starColors[i3 + 2] = intensity * (1.0 - coreFactor * 0.5); // More red in arms
+  function hsvToRgb(h, s, v) {
+    let f = (n, k = (n + h * 6) % 6) =>
+      v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+    return [f(5), f(3), f(1)];
   }
 
-  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-  starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+  const galaxyGroup = new THREE.Group();
+  galaxyGroup.position.set(0, 4, -6);
+  galaxyGroup.rotation.x = -0.2;
+  galaxyGroup.scale.setScalar(0.3);
+  scene.add(galaxyGroup);
 
-  const starMaterial = new THREE.PointsMaterial({
-    size: 0.05,
-    sizeAttenuation: true,
+  // Starfield
+  const starGeometry = new THREE.BufferGeometry();
+  const starCount = 5000;
+  const starPos = new Float32Array(starCount * 3);
+  const starCol = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const i3 = i * 3;
+    const radius = Math.pow(Math.random(), 0.6) * GALAXY_RADIUS * 1.5;
+    const theta = (Math.random() * ARM_COUNT * 2 * Math.PI) + radius * ARM_TWIST / GALAXY_RADIUS;
+    const x = radius * Math.cos(theta);
+    const y = (Math.random() - 0.5) * GALAXY_HEIGHT * 2;
+    const z = radius * Math.sin(theta);
+    starPos[i3] = x;
+    starPos[i3 + 1] = y;
+    starPos[i3 + 2] = z;
+    const tint = 0.3 + Math.random() * 0.7;
+    starCol[i3] = tint * (0.6 + 0.4 * Math.random());
+    starCol[i3 + 1] = tint * (0.7 + 0.3 * Math.random());
+    starCol[i3 + 2] = tint;
+  }
+  starGeometry.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  starGeometry.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
+  starPoints = new THREE.Points(starGeometry, new THREE.PointsMaterial({
+    size: 0.02,
     vertexColors: true,
     transparent: true,
-    opacity: 0.8
-  });
+    opacity: 0.5
+  }));
+  galaxyGroup.add(starPoints);
 
-  const stars = new THREE.Points(starGeometry, starMaterial);
-  galaxyGroup.add(stars);
+  // Node flat point mesh
+  const nodeGeometry = new THREE.BufferGeometry();
+  const posArray   = new Float32Array(MAX_NODES * 3);
+  const colorArray = new Float32Array(MAX_NODES * 3);
+  const pulseArray = new Float32Array(MAX_NODES);
+  const sizeArray  = new Float32Array(MAX_NODES);
 
-  // Glowing core at center
-  const coreGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-  const coreMaterial = new THREE.MeshBasicMaterial({
-    color: 0x4488ff,
-    transparent: true,
-    opacity: 0.3,
-    blending: THREE.AdditiveBlending
-  });
-  const core = new THREE.Mesh(coreGeometry, coreMaterial);
-  galaxyGroup.add(core);
+  const posAttr   = new THREE.BufferAttribute(posArray, 3);
+  const colAttr   = new THREE.BufferAttribute(colorArray, 3);
+  const pulseAttr = new THREE.BufferAttribute(pulseArray, 1);
+  const sizeAttr  = new THREE.BufferAttribute(sizeArray, 1);
 
-  // Node material with galaxy colors
+  nodeGeometry.setAttribute('position', posAttr);
+  nodeGeometry.setAttribute('nodeColor', colAttr);
+  nodeGeometry.setAttribute('pulse', pulseAttr);
+  nodeGeometry.setAttribute('size', sizeAttr);
+
   const nodeMaterial = new THREE.ShaderMaterial({
     uniforms: {
-      time: { value: 0 },
-      coreDistance: { value: 0 }
+      time: { value: 0.0 },
+      sizeScale: { value: 10.0 }
     },
     vertexShader: `
-      uniform float time;
-      uniform float coreDistance;
+      attribute vec3 nodeColor;
+      attribute float pulse;
       attribute float size;
-      attribute vec3 color;
       varying vec3 vColor;
-      varying float vCoreDistance;
-
-      void main() {
-        vColor = color;
-        vCoreDistance = coreDistance;
-
-        vec3 animatedPos = position;
-        // Gentle pulsing motion
-        animatedPos.x += sin(time * 2.0 + position.y * 10.0) * 0.01;
-        animatedPos.z += cos(time * 1.5 + position.x * 10.0) * 0.01;
-
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(animatedPos, 1.0);
-        gl_PointSize = size * (1.0 + sin(time + position.x * 10.0) * 0.3);
-      }
-    `,
-    fragmentShader: `
+      varying float vPulse;
       uniform float time;
-      varying vec3 vColor;
-      varying float vCoreDistance;
-
       void main() {
-        vec2 coord = gl_PointCoord - vec2(0.5);
-        float dist = length(coord);
-        if (dist > 0.5) discard;
-
-        // Core nodes are whiter, outer nodes more colorful
-        vec3 baseColor = mix(vColor, vec3(1.0), vCoreDistance * 0.5);
-
-        // Glow effect
-        float glow = pow(1.0 - dist * 2.0, 2.0);
-        float pulse = 0.8 + 0.2 * sin(time * 3.0);
-
-        gl_FragColor = vec4(baseColor * glow * pulse, glow * 0.9);
-      }
-    `,
+        vColor = nodeColor;
+        vPulse = pulse;
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = size * (1.0 + sin((time + vPulse) * 20.0) * 0.4);
+        gl_Position = projectionMatrix * mvPosition;
+      }`,
+    fragmentShader: `
+      varying vec3 vColor;
+      void main() {
+        float r = length(gl_PointCoord - vec2(0.5));
+        float alpha = smoothstep(0.5, 0.0, r);
+        gl_FragColor = vec4(vColor, alpha);
+      }`,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
 
-  const nodeGeometry = new THREE.BufferGeometry();
-  const nodePositions = new Float32Array(MAX_NODES * 3);
-  const nodeSizes = new Float32Array(MAX_NODES);
-  const nodeColors = new Float32Array(MAX_NODES * 3);
-  const nodeCoreDistances = new Float32Array(MAX_NODES);
-
-  nodeGeometry.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
-  nodeGeometry.setAttribute('size', new THREE.BufferAttribute(nodeSizes, 1));
-  nodeGeometry.setAttribute('color', new THREE.BufferAttribute(nodeColors, 3));
-  nodeGeometry.setAttribute('coreDistance', new THREE.BufferAttribute(nodeCoreDistances, 1));
-
-  const nodePoints = new THREE.Points(nodeGeometry, nodeMaterial);
+  nodePoints = new THREE.Points(nodeGeometry, nodeMaterial);
   galaxyGroup.add(nodePoints);
 
-  // Connection material with spiral arm colors
-  const connectionMaterial = new THREE.LineBasicMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.3,
-    blending: THREE.AdditiveBlending,
-    linewidth: 1
-  });
-
-  const connectionGeometry = new THREE.BufferGeometry();
-  const connectionPositions = new Float32Array(MAX_CONNECTIONS * 2 * 3);
-  const connectionColors = new Float32Array(MAX_CONNECTIONS * 2 * 3);
-
-  connectionGeometry.setAttribute('position', new THREE.BufferAttribute(connectionPositions, 3));
-  connectionGeometry.setAttribute('color', new THREE.BufferAttribute(connectionColors, 3));
-
-  const connectionLines = new THREE.LineSegments(connectionGeometry, connectionMaterial);
-  galaxyGroup.add(connectionLines);
-
-  // Galaxy-like positioning for nodes
-  const getGalaxyPosition = (nodeId, nodes) => {
-    const layerMatch = nodeId.match(/L(\d+)N(\d+)/);
-    if (!layerMatch) return new THREE.Vector3(0, 0, 0);
-
-    const layer = parseInt(layerMatch[1]);
-    const neuron = parseInt(layerMatch[2]);
-    const layerCount = nodes.filter(n => n.layer === layer).length;
-
-    // Spiral arm distribution
-    const arm = layer % 4; // Distribute layers across 4 spiral arms
-    const angle = arm * Math.PI / 2 + (neuron / layerCount) * Math.PI * 2;
-    const distance = 0.5 + (layer / 10) * 6; // Layers spread outward
-
-    // Add some randomness to create natural distribution
-    const radius = distance * (0.9 + Math.random() * 0.2);
-    const height = (Math.random() - 0.5) * GALAXY_HEIGHT;
-
-    const x = radius * Math.cos(angle + distance * 0.3);
-    const y = height;
-    const z = radius * Math.sin(angle + distance * 0.3);
-
-    return new THREE.Vector3(x, y, z);
+  const nodeMap = new Map();
+  const getSpiralPos = (index, total) => {
+    const ratio = index / total;
+    const radius = Math.sqrt(ratio) * GALAXY_RADIUS * 0.9;
+    const armIdx = Math.floor(Math.random() * ARM_COUNT);
+    const armBase = armIdx * 2 * Math.PI / ARM_COUNT;
+    const theta = armBase + radius * ARM_TWIST / GALAXY_RADIUS;
+    return new THREE.Vector3(
+      radius * Math.cos(theta),
+      (Math.random() - 0.5) * GALAXY_HEIGHT,
+      radius * Math.sin(theta)
+    );
   };
 
   const updateGraph = (graph) => {
     const nodes = graph.nodes || [];
     const links = graph.links || [];
-    const nodeCount = Math.min(nodes.length, MAX_NODES);
+    const nCount = Math.min(nodes.length, MAX_NODES);
 
-    // Position nodes in spiral galaxy pattern
-    for (let i = 0; i < nodeCount; i++) {
+    const linkCount = new Map();
+    const weightSum = new Map();
+
+    // Step 1: Build link count and weight sum per target node
+    for (const link of links) {
+      const tgt = typeof link.target === 'object' ? link.target.id : link.target;
+      linkCount.set(tgt, (linkCount.get(tgt) || 0) + 1);
+      weightSum.set(tgt, (weightSum.get(tgt) || 0) + Math.abs(link.weight || 0));
+    }
+
+    // Step 2: Determine max degree
+    let maxDegree = 0;
+    for (const count of linkCount.values()) {
+      if (count > maxDegree) maxDegree = count;
+    }
+
+    // Step 3: Place and color each node
+    for (let i = 0; i < nCount; i++) {
       const node = nodes[i];
-      const pos = getGalaxyPosition(node.id, nodes);
-      nodePosMap.set(node.id, pos);
+      const id = node.id;
+      const pos = getSpiralPos(i, nCount);
+      nodeMap.set(id, pos);
 
-      // Set positions, sizes and colors
-      const i3 = i * 3;
-      nodePositions[i3] = pos.x;
-      nodePositions[i3 + 1] = pos.y;
-      nodePositions[i3 + 2] = pos.z;
+      posArray[i * 3]     = pos.x;
+      posArray[i * 3 + 1] = pos.y;
+      posArray[i * 3 + 2] = pos.z;
 
-      // Larger nodes near center
-      const distanceFromCenter = pos.length();
-      nodeSizes[i] = 0.05 * (1.5 - distanceFromCenter / 10);
-      nodeCoreDistances[i] = 1.0 - Math.min(1.0, distanceFromCenter / 8);
+      const degree = linkCount.get(id) || 0;
+      const sumW   = weightSum.get(id) || 0;
+      const prevW  = prevWeightSums.get(id) || 0;
+      const delta  = Math.abs(sumW - prevW);
+      prevWeightSums.set(id, sumW);
 
-      // Color based on position - blue near center, purple in arms
-      const angle = Math.atan2(pos.z, pos.x);
-      nodeColors[i3] = 0.5 + 0.3 * Math.sin(angle); // R
-      nodeColors[i3 + 1] = 0.3 + 0.2 * Math.cos(angle * 2); // G
-      nodeColors[i3 + 2] = 0.8 + 0.2 * Math.sin(angle * 3); // B
+      const tNorm = maxDegree > 0 ? degree / maxDegree : 0.0;
+      const tSmooth = Math.pow(tNorm, 0.8);
+
+      const r = THREE.MathUtils.lerp(0.0, 1.0, tSmooth);
+      const g = THREE.MathUtils.lerp(1.0, 0.0, tSmooth);
+      const b = 0.0;
+
+      colorArray[i * 3]     = r;
+      colorArray[i * 3 + 1] = g;
+      colorArray[i * 3 + 2] = b;
+
+      pulseArray[i] = delta > 0.01 ? Math.random() : 0.0;
+      sizeArray[i]  = 8.0 + degree * 0.5;
     }
 
-    nodeGeometry.attributes.position.needsUpdate = true;
-    nodeGeometry.attributes.size.needsUpdate = true;
-    nodeGeometry.attributes.color.needsUpdate = true;
-    nodeGeometry.attributes.coreDistance.needsUpdate = true;
-    nodeGeometry.setDrawRange(0, nodeCount);
-
-    // Create connections with color gradients
-    let connectionIndex = 0;
-    const maxConnections = Math.min(links.length, MAX_CONNECTIONS);
-
-    for (let i = 0; i < maxConnections; i++) {
-      const link = links[i];
-      const srcPos = nodePosMap.get(link.source);
-      const tgtPos = nodePosMap.get(link.target);
-
-      if (srcPos && tgtPos) {
-        const base = connectionIndex * 6;
-        const colorBase = connectionIndex * 6;
-
-        // Positions
-        connectionPositions[base] = srcPos.x;
-        connectionPositions[base + 1] = srcPos.y;
-        connectionPositions[base + 2] = srcPos.z;
-        connectionPositions[base + 3] = tgtPos.x;
-        connectionPositions[base + 4] = tgtPos.y;
-        connectionPositions[base + 5] = tgtPos.z;
-
-        // Colors - gradient from source to target
-        const srcDist = srcPos.length();
-        const tgtDist = tgtPos.length();
-
-        // Source color
-        connectionColors[colorBase] = 0.4 + 0.4 * Math.sin(srcDist);
-        connectionColors[colorBase + 1] = 0.3 + 0.3 * Math.cos(srcDist * 0.5);
-        connectionColors[colorBase + 2] = 0.6 + 0.4 * Math.sin(srcDist * 0.3);
-
-        // Target color
-        connectionColors[colorBase + 3] = 0.5 + 0.4 * Math.cos(tgtDist);
-        connectionColors[colorBase + 4] = 0.4 + 0.3 * Math.sin(tgtDist * 0.5);
-        connectionColors[colorBase + 5] = 0.7 + 0.3 * Math.cos(tgtDist * 0.3);
-
-        connectionIndex++;
-      }
-    }
-
-    connectionGeometry.attributes.position.needsUpdate = true;
-    connectionGeometry.attributes.color.needsUpdate = true;
-    connectionGeometry.setDrawRange(0, connectionIndex * 2);
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    pulseAttr.needsUpdate = true;
+    sizeAttr.needsUpdate = true;
+    nodeGeometry.setDrawRange(0, nCount);
   };
 
   const animate = (camera, time) => {
-    // Rotate the galaxy with spiral arms leading
-    galaxyGroup.rotation.y = time * 0.0003;
-
-    // Gentle pulsing of core
-    core.scale.setScalar(1.0 + Math.sin(time * 0.001) * 0.05);
-    coreMaterial.opacity = 0.3 + Math.sin(time * 0.0007) * 0.1;
-
-    // Update shader uniforms
-    nodeMaterial.uniforms.time.value = time * 0.001;
-
-    // Stars twinkle more at edges
-    stars.material.opacity = 0.5 + Math.sin(time * 0.001) * 0.2;
+    if (rotateEnabled) {
+      galaxyGroup.rotation.y = time * 0.0001;
+    }
+    nodeMaterial.uniforms.time.value = time * 0.0001;
   };
 
   updateGraph(initialGraph);
@@ -1240,8 +1150,21 @@ const createGalaxyNetworkViz = (scene, initialGraph) => {
   return {
     updateGraph,
     animate,
-    setScale: (scale) => {
-      galaxyGroup.scale.setScalar(scale);
+    updateDynamicNodeActivity: () => {},
+    setScale: (s) => galaxyGroup.scale.setScalar(s),
+    toggleNodes: (visible) => {
+      if (nodePoints) nodePoints.visible = visible;
+    },
+    toggleStarfield: (visible) => {
+      if (starPoints) starPoints.visible = visible;
+    },
+    toggleRotation: (enabled) => {
+      rotateEnabled = enabled;
+    },
+    toggleAll: (visible) => {
+      if (nodePoints) nodePoints.visible = visible;
+      if (starPoints) starPoints.visible = visible;
+      rotateEnabled = visible;
     }
   };
 };

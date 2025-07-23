@@ -67,10 +67,11 @@ const world = async (props) => {
 
   postScene.add(quad);
 
-  let anim, animationController;
+  let anim, animationController, networkViz;
   try {
     const brainData = brainInstance.generateGraphData();
-    const networkViz = createGalaxyNetworkViz(scene, brainData);
+    networkViz = createGalaxyNetworkViz(scene, brainData);
+    networkViz.toggleAll(false);
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -144,7 +145,7 @@ const world = async (props) => {
         const brainData = brainInstance.generateGraphData();
         // console.log(networkViz.getPerformanceInfo());
         networkViz.animate(camera, performance.now());
-        networkViz.updateGraph(brainData); // New data every frame
+        networkViz.updateGraph(brainData);
 
         model.traverse((object) => {
           if (object.isMesh && object.material.uniforms?.uTime) {
@@ -224,6 +225,10 @@ const world = async (props) => {
 
 
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
+
+  $STATE.subscribe('toggleBrainViz', (state)=>{
+    networkViz.toggleAll(state);
+  })
 
   return {
     three: { scene, camera, renderer },
