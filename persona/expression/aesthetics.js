@@ -959,13 +959,12 @@ const createPostProcessingShader = (props) => {
   return postMaterial;
 }
 
-/*  createLivingBrainViz  —  sphere + shader */
 const createLivingBrainViz = (scene, initialGraph, props) => {
   const MAX_NODES = 2048;
   const MAX_LINKS = 4096;
 
   const group = new THREE.Group();
-  group.position.y = 1.5;
+  group.position.y = 2.5;
   scene.add(group);
 
   const nodeBuf = new Float32Array(MAX_NODES * 4);
@@ -978,98 +977,88 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     linkTex: { value: linkTex },
     nodeCnt: { value: 0 },
     linkCnt: { value: 0 },
-    res:     { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
     proj:    { value: new THREE.Matrix4() },
     view:    { value: new THREE.Matrix4() },
-    colorNodePos: { value: new THREE.Color(0x00ffae) },
-    colorNodeNeg: { value: new THREE.Color(0xff0051) },
-    colorLinkPos: { value: new THREE.Color(0x33d2ff) },
-    colorLinkNeg: { value: new THREE.Color(0xff5edc) },
-    colorFresnel: { value: new THREE.Color(0xffcc00) },
-    colorGrid:    { value: new THREE.Color(0x111122) },
-    colorVoronoiEdge: { value: new THREE.Color(0x222244) }
+    uDisplacementRange: { value: 1 }, // NEW: Uniform for max vertex displacement range
+    colorNodePos: { value: new THREE.Color(0xcc00cc) }, // Vibrant Medium Magenta
+    colorNodeNeg: { value: new THREE.Color(0x77aa00) }, // Deep Acidic Green
+    colorLinkPos: { value: new THREE.Color(0xd94f00) }, // Saturated Orange-Red
+    colorLinkNeg: { value: new THREE.Color(0x7700ee) }, // Strong Electric Purple
+    colorFresnel: { value: new THREE.Color(0x0099cc) }, // Vibrant Tech Blue
+    colorGrid:    { value: new THREE.Color(0xe8e8e8) }, // Neutral Very Light Grey
+    colorVoronoiEdge: { value: new THREE.Color(0xcccccc) } // Medium Light Grey
   };
 
-  const sphereGeo = new THREE.SphereGeometry(1, 128, 64);
+  const sphereGeo = new THREE.SphereGeometry(1, 128, 64); // SphereGeometry includes 'normal' attribute
   const sphereMat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: `
-      varying vec3 vPos;
-      varying vec3 vNorm;
-      void main() {
-        vec3 rot = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(rot, 1.0);
-        vPos = rot;
-        vNorm = normalize(rot);
-      }`,
+    uniform sampler2D nodeTex;
+    uniform float nodeCnt;
+    // uniform float uTime; // REMOVED: No uTime uniform
+    uniform float uDisplacementRange;
+    varying float vBias;
+    // attribute vec3 normal; // This line is REMOVED to avoid 'redefinition' error
+
+    const float MAX_N = 2048.0;
+
+    float spDist(vec3 a, vec3 b) {
+    return acos(clamp(dot(a, b), -1.0, 1.0));
+    }
+
+    void main() {
+    vec3 displaced = position;
+    float closestBias = 0.0;
+    float minDist = 9999.0;
+
+    for (float i = 0.0; i < MAX_N; i++) {
+    if (i >= nodeCnt) break;
+    vec4 n = texelFetch(nodeTex, ivec2(int(i), 0), 0);
+    float d = spDist(normalize(position), normalize(n.xyz));
+    if (d < minDist) {
+    minDist = d;
+    closestBias = n.w;
+    }
+    }
+
+    vBias = closestBias;
+
+    float biasStrength = clamp(vBias * 0.5 + 0.5, 0.0, 1.0);
+
+    float dramaticBiasInfluence = pow(biasStrength, 0.5);
+
+    float displacementAmount = dramaticBiasInfluence * uDisplacementRange;
+
+    displaced += normal * displacementAmount; // 'normal' is implicitly available
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+    }`,
+
     fragmentShader: `
       precision highp float;
-      uniform sampler2D nodeTex, linkTex;
-      uniform float nodeCnt, linkCnt;
-uniform vec2 res;
-      uniform vec3 colorNodePos, colorNodeNeg, colorLinkPos, colorLinkNeg, colorFresnel, colorGrid, colorVoronoiEdge;
-      varying vec3 vPos, vNorm;
-      const float MAX_N = 2048.0;
+      uniform sampler2D linkTex;
+      uniform float linkCnt;
+      uniform vec3 colorNodePos;
+      uniform vec3 colorNodeNeg;
+      varying float vBias;
+
       const float MAX_L = 4096.0;
-      const float NODE_R = 0.12;
-      const float LINK_MIN = 0.005;
-      const float LINK_MAX = 0.08;
-      float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898,78.233,45.164))) * 43758.5453); }
-      float spDist(vec3 a, vec3 b) { return acos(clamp(dot(a, b), -1.0, 1.0)); }
+
+      vec3 getBiasColor(float b) {
+        return mix(colorNodeNeg, colorNodePos, clamp(b * 0.5 + 0.5, 0.0, 1.0));
+      }
+
       void main() {
-        vec3 col = vec3(0.0);
-
-        for (float i = 0.0; i < MAX_L; i++) {
-          if (i >= linkCnt) break;
-          vec3 p0 = texelFetch(linkTex, ivec2(i, 0), 0).xyz;
-          vec3 p1 = texelFetch(linkTex, ivec2(i, 1), 0).xyz;
-          float w = texelFetch(linkTex, ivec2(i, 2), 0).x;
-          float arc = spDist(p0, p1);
-          float d = spDist(vNorm, p0) + spDist(vNorm, p1);
-          float thick = mix(LINK_MIN, LINK_MAX, abs(w) / 3.0);
-          float alpha = smoothstep(arc + thick, arc, d) * clamp(abs(w) * 2.0, 0.2, 1.0) * 0.1;
-          col += mix(colorLinkNeg, colorLinkPos, step(0.0, w)) * alpha;
-        }
-
-        for (float j = 0.0; j < MAX_N; j++) {
-          if (j >= nodeCnt) break;
-          vec4 n = texelFetch(nodeTex, ivec2(j, 0), 0);
-          float d = spDist(vNorm, n.xyz);
-          float bias = n.w;
-          float scaledBias = pow(abs(bias), 0.35);
-          float alpha = smoothstep(NODE_R * 1.3, NODE_R, d) * 0.2 * clamp(scaledBias, 0.05, 1.0);
-          float t = clamp(bias * 0.5 + 0.5, 0.0, 1.0);
-          vec3 nodeCol = mix(colorNodeNeg, colorNodePos, t);
-          col += nodeCol * alpha;
-        }
-
-        float minD = 9999.0, nextD = 9999.0;
-        for (float i = 0.0; i < MAX_N; i++) {
-          if (i >= nodeCnt) break;
-          float d = spDist(vNorm, texelFetch(nodeTex, ivec2(i, 0), 0).xyz);
-          if (d < minD) { nextD = minD; minD = d; }
-          else if (d < nextD) { nextD = d; }
-        }
-        float edge = smoothstep(0.02, 0.0, nextD - minD);
-        col += colorVoronoiEdge * edge * 0.1;
-
-        col += colorFresnel * pow(1.0 - dot(normalize(vNorm), normalize(vPos)), 3.0) * 0.1;
-        col += colorGrid * step(0.98, abs(sin(vPos.x * 20.0)) * abs(sin(vPos.y * 20.0)));
-
-        col = col / (1.0 + dot(col, vec3(0.2)));
-        col = clamp(col, 0.0, 1.0);
-        col = pow(vec3(1.0) - col, vec3(1.0 / 2.2));
+        vec3 col = getBiasColor(vBias);
         gl_FragColor = vec4(col, 1.0);
       }`,
+    side: THREE.DoubleSide,
     transparent: true,
     blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.DoubleSide
+    depthWrite: false
   });
 
   const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
-  sphereMesh.scale.set(0.5, 0.5, 0.5);
-  sphereMesh.position.set(0, 1, 0);
+  sphereMesh.scale.set(0.25, 0.25, 0.25);
   group.add(sphereMesh);
 
   const nodeMap = new Map();
@@ -1107,10 +1096,11 @@ uniform vec2 res;
   }
 
   function animate(cam, t) {
-    sphereMat.uniforms.res.value.set(props.width, props.height);
     sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
     sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
-    sphereMesh.rotation.y += 0.005;
+    // sphereMat.uniforms.uTime.value = t; // IMPORTANT: Update the time uniform each frame for animation
+
+    group.rotation.y += 0.005;
   }
 
   updateGraph(initialGraph || { nodes: [], links: [] });
@@ -1122,7 +1112,6 @@ uniform vec2 res;
     toggleAll: v => { sphereMesh.visible = v; }
   };
 };
-
 
 window.createShaderMaterial = createShaderMaterial;
 window.createDebugMaterial = createDebugMaterial;
