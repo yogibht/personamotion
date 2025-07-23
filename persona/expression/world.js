@@ -49,7 +49,7 @@ const world = async (props) => {
   let postMaterial = createPostProcessingShader({
     width: canvas.width,
     height: canvas.height,
-    shader: UTILITIES.randomInt(1, 16), // 16 total
+    shader: 3, // 16 total
     colorMult: new THREE.Color(1.0, 1.0, 1.0)
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
@@ -69,6 +69,9 @@ const world = async (props) => {
 
   let anim, animationController;
   try {
+    const brainData = brainInstance.generateGraphData();
+    const networkViz = createGalaxyNetworkViz(scene, brainData);
+
     const entity = await prepEntity(scene, {
       modelURL,
       enableIK: true,
@@ -81,6 +84,7 @@ const world = async (props) => {
     const { model, raycastPlane } = entity;
     animationController = entity.animationController;
     animationController.setFPS(60);
+    animationController.play('happyandidle');
 
     // animationController.createIKAnimation('pointAndMove', {
     //   duration: 3.0,
@@ -136,6 +140,11 @@ const world = async (props) => {
       { fps: 60 },
       ({ threejs }) => {
         animationController.update(threejs.delta);
+
+        const brainData = brainInstance.generateGraphData();
+        // console.log(networkViz.getPerformanceInfo());
+        networkViz.animate(camera, performance.now());
+        networkViz.updateGraph(brainData); // New data every frame
 
         model.traverse((object) => {
           if (object.isMesh && object.material.uniforms?.uTime) {

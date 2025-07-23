@@ -61,46 +61,57 @@ const RLHFBrain = () => {
      generateGraphData() {
        const json = net.toJSON();
        const layers = json.layers;
-       const activationFn = json.activation || 'sigmoid'; // fallback if not stored
+       const activationFn = json.activation || 'sigmoid';
        const graph = {
          nodes: [],
          links: []
        };
 
+       const nodeIndexMap = [];
+
+       // First, create nodes and track nodeId -> index per layer
        layers.forEach((layer, layerIdx) => {
-         const nodeIds = Object.keys(layer);
-         nodeIds.forEach((nodeId, neuronIdx) => {
-           const node = layer[nodeId];
+         const size = layer.biases?.length || 0;
+         const layerMap = {};
+
+         for (let neuronIdx = 0; neuronIdx < size; neuronIdx++) {
            const id = `L${layerIdx}N${neuronIdx}`;
 
            graph.nodes.push({
              id,
              layer: layerIdx,
              neuron: neuronIdx,
-             label: nodeId,
-             bias: node.bias ?? null,
+             bias: layer.biases?.[neuronIdx] ?? null,
              activation: activationFn
            });
 
-           if (layerIdx > 0 && node.weights) {
-             const prevLayerIds = Object.keys(layers[layerIdx - 1]);
-             let fromIdx = 0;
-             for (const prevNodeId of prevLayerIds) {
-               const sourceId = `L${layerIdx - 1}N${fromIdx}`;
-               const weight = node.weights?.[prevNodeId] ?? null;
-               graph.links.push({
-                 source: sourceId,
-                 target: id,
-                 weight
-               });
-               fromIdx++;
-             }
-           }
-         });
+           layerMap[neuronIdx] = id;
+         }
+
+         nodeIndexMap[layerIdx] = layerMap;
        });
+
+       // Then, create links using weight matrices
+       for (let layerIdx = 1; layerIdx < layers.length; layerIdx++) {
+         const currentLayer = layers[layerIdx];
+         const weights = currentLayer.weights; // shape: [currentNeurons][prevNeurons]
+
+         if (!weights || !weights.length) continue;
+
+         for (let i = 0; i < weights.length; i++) { // current layer neuron
+           for (let j = 0; j < weights[i].length; j++) { // previous layer neuron
+             graph.links.push({
+               source: nodeIndexMap[layerIdx - 1][j],
+               target: nodeIndexMap[layerIdx][i],
+               weight: weights[i][j]
+             });
+           }
+         }
+       }
 
        return graph;
      }
+
   };
 };
 

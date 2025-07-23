@@ -34,7 +34,7 @@ const prepEntityMatter = async (scene, props) => {
 
     // Get and log bone data immediately after loading
     const boneData = getBoneData(model);
-    console.log('Bone Data:', JSON.stringify(boneData, null, 2));
+    // console.log('Bone Data:', JSON.stringify(boneData, null, 2));
 
     model.traverse(object => {
       if (object.isMesh) {

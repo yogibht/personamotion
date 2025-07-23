@@ -20,11 +20,12 @@ const startPersonaMotion = async (arguments) => {
     });
     const newWorld = await world({ brainInstance, canvas, modelURL, ENV });
 
-    window.addEventListener("keyup", async (event) => {
-      // const loadedStorageData = await loadData();
-      // console.log(loadedStorageData);
-      console.log(brainInstance.generateGraphData());
-    })
+    // window.addEventListener("keyup", async (event) => {
+    //   // const loadedStorageData = await loadData();
+    //   // console.log(loadedStorageData);
+    //   const brainGraph = brainInstance.generateGraphData();
+    //   console.log(JSON.stringify(brainGraph), brainGraph);
+    // })
   }
   catch(err){
     console.error(err);
