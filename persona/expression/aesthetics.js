@@ -960,99 +960,105 @@ const createPostProcessingShader = (props) => {
 }
 
 /*  createLivingBrainViz  —  sphere + shader */
-const createLivingBrainViz = (scene, initialGraph, camera) => {
+const createLivingBrainViz = (scene, initialGraph, props) => {
   const MAX_NODES = 2048;
   const MAX_LINKS = 4096;
 
   const group = new THREE.Group();
-  group.position.y = 1.5; // lift it up
+  group.position.y = 1.5;
   scene.add(group);
 
-  /* ---------- buffers / textures ---------- */
-  const nodeBuf = new Float32Array(MAX_NODES * 4); // x,y,z,bias
-  const linkBuf = new Float32Array(MAX_LINKS * 7); // x1,y1,z1,x2,y2,z2,weight
+  const nodeBuf = new Float32Array(MAX_NODES * 4);
+  const linkBuf = new Float32Array(MAX_LINKS * 7);
   const nodeTex = new THREE.DataTexture(nodeBuf, MAX_NODES, 1, THREE.RGBAFormat, THREE.FloatType);
   const linkTex = new THREE.DataTexture(linkBuf, MAX_LINKS, 1, THREE.RGBAFormat, THREE.FloatType);
 
-  /* ---------- uniforms ---------- */
   const uniforms = {
     nodeTex: { value: nodeTex },
     linkTex: { value: linkTex },
     nodeCnt: { value: 0 },
     linkCnt: { value: 0 },
-    time:    { value: 0 },
     res:     { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
     proj:    { value: new THREE.Matrix4() },
-    view:    { value: new THREE.Matrix4() }
+    view:    { value: new THREE.Matrix4() },
+    colorNodePos: { value: new THREE.Color(0x00ffae) },
+    colorNodeNeg: { value: new THREE.Color(0xff0051) },
+    colorLinkPos: { value: new THREE.Color(0x33d2ff) },
+    colorLinkNeg: { value: new THREE.Color(0xff5edc) },
+    colorFresnel: { value: new THREE.Color(0xffcc00) },
+    colorGrid:    { value: new THREE.Color(0x111122) },
+    colorVoronoiEdge: { value: new THREE.Color(0x222244) }
   };
 
-  /* ---------- sphere mesh ---------- */
   const sphereGeo = new THREE.SphereGeometry(1, 128, 64);
   const sphereMat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: `
       varying vec3 vPos;
       varying vec3 vNorm;
-      uniform float time;
-      void main(){
-        vPos = position;
-        vNorm = normalize(position);
-        /* slow breathing */
-        float breath = sin(time * 1.57) * 0.15 + 1.0;
-        vec3 pos = position * breath;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      void main() {
+        vec3 rot = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(rot, 1.0);
+        vPos = rot;
+        vNorm = normalize(rot);
       }`,
     fragmentShader: `
       precision highp float;
       uniform sampler2D nodeTex, linkTex;
-      uniform float nodeCnt, linkCnt, time;
-      varying vec3 vPos; varying vec3 vNorm;
-
-      const float MAX_N = ${MAX_NODES.toFixed(1)};
-      const float MAX_L = ${MAX_LINKS.toFixed(1)};
+      uniform float nodeCnt, linkCnt;
+uniform vec2 res;
+      uniform vec3 colorNodePos, colorNodeNeg, colorLinkPos, colorLinkNeg, colorFresnel, colorGrid, colorVoronoiEdge;
+      varying vec3 vPos, vNorm;
+      const float MAX_N = 2048.0;
+      const float MAX_L = 4096.0;
       const float NODE_R = 0.12;
       const float LINK_MIN = 0.005;
       const float LINK_MAX = 0.08;
-
-      /* noise helper */
-      float hash(vec3 p){ return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
-
-      /* spherical distance */
-      float spDist(vec3 a, vec3 b){ return acos(clamp(dot(a, b), -1.0, 1.0)); }
-
-      void main(){
+      float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898,78.233,45.164))) * 43758.5453); }
+      float spDist(vec3 a, vec3 b) { return acos(clamp(dot(a, b), -1.0, 1.0)); }
+      void main() {
         vec3 col = vec3(0.0);
 
-        /* wobble surface */
-        float wobble = sin(time * 4.0 + hash(vNorm * 10.0) * 20.0) * 0.02;
-
-        /* draw links */
-        for(float i = 0.0; i < MAX_L; i++){
-          if(i >= linkCnt) break;
+        for (float i = 0.0; i < MAX_L; i++) {
+          if (i >= linkCnt) break;
           vec3 p0 = texelFetch(linkTex, ivec2(i, 0), 0).xyz;
           vec3 p1 = texelFetch(linkTex, ivec2(i, 1), 0).xyz;
           float w = texelFetch(linkTex, ivec2(i, 2), 0).x;
-
           float arc = spDist(p0, p1);
-          float d   = spDist(vNorm, p0) + spDist(vNorm, p1) + wobble;
+          float d = spDist(vNorm, p0) + spDist(vNorm, p1);
           float thick = mix(LINK_MIN, LINK_MAX, abs(w) / 3.0);
-          float alpha = smoothstep(arc + thick, arc, d) * clamp(abs(w) * 2.0, 0.2, 1.0);
-          vec3 linkCol = w > 0.0 ? vec3(0.0, 1.0, 1.0) : vec3(1.0, 0.0, 1.0);
-          col += linkCol * alpha;
+          float alpha = smoothstep(arc + thick, arc, d) * clamp(abs(w) * 2.0, 0.2, 1.0) * 0.1;
+          col += mix(colorLinkNeg, colorLinkPos, step(0.0, w)) * alpha;
         }
 
-        /* draw nodes */
-        for(float j = 0.0; j < MAX_N; j++){
-          if(j >= nodeCnt) break;
-          vec3 nPos = texelFetch(nodeTex, ivec2(j, 0), 0).xyz;
-          float bias = texelFetch(nodeTex, ivec2(j, 0), 0).w;
-          float d   = spDist(vNorm, nPos) + wobble;
-          float pulse = 1.0 + 0.25 * sin(time * 5.0 + j * 0.3);
-          float alpha = smoothstep(NODE_R * 1.3, NODE_R, d) * pulse * 0.8;
-          vec3 nodeCol = bias > 0.0 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+        for (float j = 0.0; j < MAX_N; j++) {
+          if (j >= nodeCnt) break;
+          vec4 n = texelFetch(nodeTex, ivec2(j, 0), 0);
+          float d = spDist(vNorm, n.xyz);
+          float bias = n.w;
+          float scaledBias = pow(abs(bias), 0.35);
+          float alpha = smoothstep(NODE_R * 1.3, NODE_R, d) * 0.2 * clamp(scaledBias, 0.05, 1.0);
+          float t = clamp(bias * 0.5 + 0.5, 0.0, 1.0);
+          vec3 nodeCol = mix(colorNodeNeg, colorNodePos, t);
           col += nodeCol * alpha;
         }
 
+        float minD = 9999.0, nextD = 9999.0;
+        for (float i = 0.0; i < MAX_N; i++) {
+          if (i >= nodeCnt) break;
+          float d = spDist(vNorm, texelFetch(nodeTex, ivec2(i, 0), 0).xyz);
+          if (d < minD) { nextD = minD; minD = d; }
+          else if (d < nextD) { nextD = d; }
+        }
+        float edge = smoothstep(0.02, 0.0, nextD - minD);
+        col += colorVoronoiEdge * edge * 0.1;
+
+        col += colorFresnel * pow(1.0 - dot(normalize(vNorm), normalize(vPos)), 3.0) * 0.1;
+        col += colorGrid * step(0.98, abs(sin(vPos.x * 20.0)) * abs(sin(vPos.y * 20.0)));
+
+        col = col / (1.0 + dot(col, vec3(0.2)));
+        col = clamp(col, 0.0, 1.0);
+        col = pow(vec3(1.0) - col, vec3(1.0 / 2.2));
         gl_FragColor = vec4(col, 1.0);
       }`,
     transparent: true,
@@ -1060,83 +1066,63 @@ const createLivingBrainViz = (scene, initialGraph, camera) => {
     depthWrite: false,
     side: THREE.DoubleSide
   });
+
   const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+  sphereMesh.scale.set(0.5, 0.5, 0.5);
+  sphereMesh.position.set(0, 1, 0);
   group.add(sphereMesh);
 
-  /* ---------- helper layout ---------- */
   const nodeMap = new Map();
-  const layerCounts = new Map();
-
   function spherePos(i, total, layer, maxLayer) {
     const y = 1.0 - 2.0 * (i / total);
     const radius = Math.sqrt(1.0 - y * y);
     const theta = Math.PI * (3.0 - Math.sqrt(5.0)) * i + layer * 0.2;
-    const x = radius * Math.cos(theta);
-    const z = radius * Math.sin(theta);
-    return new THREE.Vector3(x, y, z);
+    return new THREE.Vector3(radius * Math.cos(theta), y, radius * Math.sin(theta));
   }
 
-  /* ---------- update graph ---------- */
-  function updateGraph(graph){
-    const nodes = graph.nodes || [];
-    const links = graph.links || [];
-
-    const nCount = Math.min(nodes.length, MAX_NODES);
-    const lCount = Math.min(links.length, MAX_LINKS);
-
-    /* id → index map */
-    const id2idx = new Map(nodes.map((n,i)=>[n.id,i]));
-
-    /* pack nodes */
-    for (let i = 0; i < nCount; i++){
+  function updateGraph(graph) {
+    const nodes = graph.nodes || [], links = graph.links || [];
+    const nCount = Math.min(nodes.length, MAX_NODES), lCount = Math.min(links.length, MAX_LINKS);
+    const id2idx = new Map(nodes.map((n, i) => [n.id, i]));
+    for (let i = 0; i < nCount; i++) {
       const pos = spherePos(i, nCount, nodes[i].layer, 6);
-      nodeBuf[i*4+0] = pos.x;
-      nodeBuf[i*4+1] = pos.y;
-      nodeBuf[i*4+2] = pos.z;
-      nodeBuf[i*4+3] = nodes[i].bias || 0;
+      nodeBuf.set([pos.x, pos.y, pos.z, nodes[i].bias || 0], i * 4);
       nodeMap.set(nodes[i].id, pos);
     }
     nodeTex.needsUpdate = true;
-
-    /* pack links */
     let lIdx = 0;
-    for (const l of links){
+    for (const l of links) {
       if (lIdx >= MAX_LINKS) break;
-      const srcId = typeof l.source === 'object' ? l.source.id : l.source;
-      const dstId = typeof l.target === 'object' ? l.target.id : l.target;
-      const i0 = id2idx.get(srcId);
-      const i1 = id2idx.get(dstId);
+      const i0 = id2idx.get(typeof l.source === 'object' ? l.source.id : l.source);
+      const i1 = id2idx.get(typeof l.target === 'object' ? l.target.id : l.target);
       if (i0 === undefined || i1 === undefined) continue;
-
-      nodeMap.get(srcId).toArray(linkBuf, lIdx*7);
-      nodeMap.get(dstId).toArray(linkBuf, lIdx*7+3);
-      linkBuf[lIdx*7+6] = l.weight || 0.0;
+      nodeMap.get(nodes[i0].id).toArray(linkBuf, lIdx * 7);
+      nodeMap.get(nodes[i1].id).toArray(linkBuf, lIdx * 7 + 3);
+      linkBuf[lIdx * 7 + 6] = l.weight || 0;
       lIdx++;
     }
     linkTex.needsUpdate = true;
-
-    /* push to shader */
     sphereMat.uniforms.nodeCnt.value = nCount;
     sphereMat.uniforms.linkCnt.value = lIdx;
   }
 
-  /* ---------- animation ---------- */
-  function animate(cam, t){
-    sphereMat.uniforms.time.value = t * 0.001;
-    sphereMat.uniforms.res.value.set(window.innerWidth, window.innerHeight);
+  function animate(cam, t) {
+    sphereMat.uniforms.res.value.set(props.width, props.height);
     sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
     sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
+    sphereMesh.rotation.y += 0.005;
   }
 
-  updateGraph(initialGraph || {nodes:[],links:[]});
+  updateGraph(initialGraph || { nodes: [], links: [] });
 
   return {
     updateGraph,
     animate,
-    setScale: (s)=>sphereMesh.scale.setScalar(s),
-    toggleAll: (v)=>{sphereMesh.visible = v;}
+    setScale: s => sphereMesh.scale.setScalar(s),
+    toggleAll: v => { sphereMesh.visible = v; }
   };
 };
+
 
 window.createShaderMaterial = createShaderMaterial;
 window.createDebugMaterial = createDebugMaterial;
