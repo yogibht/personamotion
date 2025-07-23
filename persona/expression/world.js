@@ -54,16 +54,17 @@ const world = async (props) => {
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
 
-  // const updateMaterial = () => {
-  //   postMaterial = createPostProcessingShader({
-  //     width: canvas.width,
-  //     height: canvas.height,
-  //     shader: UTILITIES.randomInt(1, 16), // 16 total
-  //     colorMult: new THREE.Color(1.0, 1.0, 1.0)
-  //   });
-  //   quad.material = postMaterial;
-  //   postMaterial.needsUpdate = true;
-  // };
+  const updateMaterial = (filterStyle) => {
+    console.log("Filter Style", filterStyle)
+    postMaterial = createPostProcessingShader({
+      width: canvas.width,
+      height: canvas.height,
+      shader: filterStyle,
+      colorMult: new THREE.Color(1.0, 1.0, 1.0)
+    });
+    quad.material = postMaterial;
+    postMaterial.needsUpdate = true;
+  };
 
   postScene.add(quad);
 
@@ -190,7 +191,7 @@ const world = async (props) => {
     const width = canvas.width;
     const height = canvas.height;
 
-    renderer.setSize(width, height, false);
+    renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -224,6 +225,7 @@ const world = async (props) => {
 
       const allAnimations = animationController.getAnimations();
       const animationName = allAnimations[UTILITIES.randomInt(1, allAnimations.length)];
+      console.log('playing animation: ', animationName);
       animationController.play(animationName);
     }
   };
@@ -231,15 +233,17 @@ const world = async (props) => {
 
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
-  $STATE.subscribe('toggleBrainViz', (state)=>{
+  $STATE.subscribe('toggleBrainViz', (state) => {
     networkVizToggleState = state;
     networkViz.toggleAll(networkVizToggleState);
-  })
+  });
 
-  $STATE.subscribe('applyBrainFeedback', (feedback = 0)=>{
-    console.log(feedback);
+  $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
+    // console.log(feedback);
     brainInstance.applyHumanFeedback(feedback);
-  })
+  });
+
+  $STATE.subscribe('switchFilterUp', updateMaterial);
 
   return {
     three: { scene, camera, renderer },

@@ -30,6 +30,10 @@ const startPersonaMotion = async (arguments) => {
         },
         () => {
           $STATE.set('applyBrainFeedback', -1);
+        },
+        () => {
+          const filterStyle = UTILITIES.randomInt(1, 16);
+          $STATE.set('switchFilterUp', filterStyle);
         }
       ],
       ENV

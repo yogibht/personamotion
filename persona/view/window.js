@@ -17,6 +17,7 @@ const UIComponents = {
                 { id: 'brain_btn', icon: '🌌', label: 'brain' },
                 { id: 'keep_this_btn', icon: '🔥', label: 'keep_this' },
                 { id: 'no_good_btn', icon: '😭', label: 'no_good' },
+                { id: 'filter_me', icon: '🕶️', label: 'filter_me' }
             ].map((btn, indx) => ({
                 ...btn,
                 onClick: options.execFunctions?.[indx] || (() => console.log(`${btn.id} clicked`))
@@ -194,8 +195,8 @@ const setupWindow = async (options) => {
         const dx = data.currentPosition.x - startX;
         const dy = data.currentPosition.y - startY;
 
-        const newWidth = Math.max(200, Math.min(window.innerWidth - 50, startWidth + dx));
-        const newHeight = Math.max(200, Math.min(window.innerHeight - 50, startHeight + dy));
+        const newWidth = Math.max(200, Math.min(window.innerWidth - 50, startWidth - dx));
+        const newHeight = Math.max(200, Math.min(window.innerHeight - 50, startHeight - dy));
 
         container.style.width = `${newWidth}px`;
         container.style.height = `${newHeight}px`;
