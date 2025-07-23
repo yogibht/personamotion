@@ -16,15 +16,23 @@ const startPersonaMotion = async (arguments) => {
       toggleBrainViz: false
     };
     const { container, canvas, inputManager } = await renderViewWindow({
-        brainInstance,
-        buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
-        promptPosition: 'top', // or 'bottom'
-        buttonSizePercent: 0.12, // relative to container size
-        execFunctions: [() => {
+      brainInstance,
+      buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
+      promptPosition: 'top', // or 'bottom'
+      buttonSizePercent: 0.12, // relative to container size
+      execFunctions: [
+        () => {
           $STATE.set('toggleBrainViz', !initialFunctionalState.toggleBrainViz);
           initialFunctionalState.toggleBrainViz = !initialFunctionalState.toggleBrainViz;
-        }],
-        ENV
+        },
+        () => {
+          $STATE.set('applyBrainFeedback', 1);
+        },
+        () => {
+          $STATE.set('applyBrainFeedback', -1);
+        }
+      ],
+      ENV
     });
     const newWorld = await world({ brainInstance, canvas, modelURL, ENV });
 

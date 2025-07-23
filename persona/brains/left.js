@@ -23,6 +23,67 @@ const RLHFBrain = () => {
       }
     },
 
+    applyHumanFeedback(feedback, decay = 0.95) {  // Slower decay for more persistent effects
+      if (![-1, 0, 1].includes(feedback)) {
+        console.warn('Feedback should be -1, 0, or 1');
+        return;
+      }
+
+      // Enhanced feedback parameters
+      const FEEDBACK_STRENGTH = 0.5;  // Increased from 0.2 (more impact per feedback)
+      const REWARD_RANGE = [0.05, 3.0];  // Wider reward bounds (was [0.1, 2.0])
+      const LEARNING_RATE_ADJUSTMENT = feedback > 0 ? 1.5 : 0.6;  // More aggressive adjustment
+
+      // 1. Apply stronger rewards to recent samples (last 10 instead of 5)
+      const recentSamples = trainingData.slice(-10);
+      recentSamples.forEach((sample, i) => {
+        const timeWeight = Math.pow(decay, i);
+        const impact = FEEDBACK_STRENGTH * (1 + Math.abs(feedback)); // Non-linear impact
+        const newReward = sample.reward + (feedback * impact * timeWeight);
+
+        // Clamp within wider range
+        sample.reward = Math.max(REWARD_RANGE[0], Math.min(REWARD_RANGE[1], newReward));
+      });
+
+      // 2. Directly modify network parameters with stronger adjustments
+      const options = net.trainOpts || {};
+      const currentLR = options.learningRate || 0.001;
+
+      if (feedback !== 0) {
+        const newLR = currentLR * (feedback > 0 ?
+          LEARNING_RATE_ADJUSTMENT :
+          1/LEARNING_RATE_ADJUSTMENT);
+
+        options.learningRate = Math.max(0.0003, Math.min(0.003, newLR));
+      }
+
+      // 3. Add momentum to weights for positive feedback
+      if (feedback > 0) {
+        const json = net.toJSON();
+        json.layers.forEach(layer => {
+          if (layer.weights) {
+            layer.weights = layer.weights.map(weights =>
+              weights.map(w => w * (1 + 0.05 * Math.random()))
+            );
+          }
+        });
+        net.fromJSON(json);
+      }
+
+      // 4. Track feedback intensity for visualization
+      this.lastFeedback = {
+        value: feedback,
+        intensity: FEEDBACK_STRENGTH * (1 + Math.abs(feedback)),
+        timestamp: Date.now()
+      };
+
+      console.log(`Applied STRONG feedback ${feedback}`, {
+        learningRate: options.learningRate,
+        rewardRange: recentSamples.map(s => s.reward),
+        networkImpact: feedback > 0 ? "Boosted weights" : "Normal"
+      });
+    },
+
     /**
      * Train on all current data — safe to call every frame
      */

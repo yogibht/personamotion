@@ -67,11 +67,11 @@ const world = async (props) => {
 
   postScene.add(quad);
 
-  let anim, animationController, networkViz;
+  let anim, animationController, networkViz, networkVizToggleState = false;
   try {
     const brainData = brainInstance.generateGraphData();
     networkViz = createGalaxyNetworkViz(scene, brainData);
-    networkViz.toggleAll(false);
+    networkViz.toggleAll(networkVizToggleState);
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -138,14 +138,16 @@ const world = async (props) => {
     // Animation loop with post-processing
     const clock = new THREE.Clock();
     anim = createAnimationLoop(
-      { fps: 60 },
+      { fps: 90 },
       ({ threejs }) => {
         animationController.update(threejs.delta);
 
-        const brainData = brainInstance.generateGraphData();
-        // console.log(networkViz.getPerformanceInfo());
-        networkViz.animate(camera, performance.now());
-        networkViz.updateGraph(brainData);
+        if (networkVizToggleState) {
+          const brainData = brainInstance.generateGraphData();
+          // console.log(networkViz.getPerformanceInfo());
+          networkViz.animate(camera, performance.now());
+          networkViz.updateGraph(brainData);
+        }
 
         model.traverse((object) => {
           if (object.isMesh && object.material.uniforms?.uTime) {
@@ -227,7 +229,13 @@ const world = async (props) => {
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
   $STATE.subscribe('toggleBrainViz', (state)=>{
-    networkViz.toggleAll(state);
+    networkVizToggleState = state;
+    networkViz.toggleAll(networkVizToggleState);
+  })
+
+  $STATE.subscribe('applyBrainFeedback', (feedback = 0)=>{
+    console.log(feedback);
+    brainInstance.applyHumanFeedback(feedback);
   })
 
   return {
