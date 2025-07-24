@@ -86,37 +86,29 @@ const world = async (props) => {
       debug: false
     });
 
-    const { model, raycastPlane } = entity;
+    const { model, raycastPlane, boneData } = entity;
     animationController = entity.animationController;
     animationController.setFPS(60);
-    animationController.play('happyandidle');
+    animationController.play('happyandidle', {loop: true});
 
-    // animationController.createIKAnimation('pointAndMove', {
-    //   duration: 3.0,
-    //   loop: true,
-    //   chains: {
-    //     'mixamorigLeftHand': {
-    //       x: (t) => Math.sin(t * Math.PI * 2),
-    //       y: (t) => 1.5 + 0.3 * Math.sin(t * Math.PI * 4),
-    //       z: 1.0
-    //     }
-    //   },
-    //   motion: {
-    //     position: {
-    //       x: (t) => Math.sin(t * Math.PI * 2) * 2,
-    //       y: (t) => 0.2 * Math.sin(t * Math.PI * 8),
-    //       z: (t) => Math.cos(t * Math.PI * 2) * 2
-    //     },
-    //     rotation: {
-    //       y: (t) => t * Math.PI * 2
-    //     },
-    //     scale: {
-    //       x: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
-    //       y: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
-    //       z: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4)
-    //     }
-    //   }
-    // });
+
+    // animationController.createIKAnimation('wave', {
+    //   mixamorigLeftHand: t => ({
+    //     x: Math.sin(t * Math.PI * 2) * 25,
+    //     y: Math.sin(t * Math.PI * 4) * 15,
+    //     z: 0
+    //   })
+    // }, 1.5);
+    // entity.animationController.play('wave');
+
+    // entity.animationController.createIKAnimation('kick', {
+    //   mixamorigRightFoot: t => ({
+    //     x: 0,
+    //     y: Math.max(0, Math.sin(t * Math.PI) * 40),
+    //     z: 0
+    //   })
+    // }, 1);
+    // entity.animationController.play('kick');
 
     // window.addEventListener('keyup', (e) => {
     //   if (e.key === 'w') {

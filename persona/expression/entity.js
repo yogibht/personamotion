@@ -8,6 +8,7 @@ const prepEntity = async (scene, props) => {
       raycastPlane: motion.raycastPlane,
       animationController: motion.animationController,
       ikSolver: motion.ikSolver,
+      boneData: matter.boneData,
       dispose: () => {
         matter.dispose();
         motion.dispose();
