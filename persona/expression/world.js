@@ -238,11 +238,6 @@ const world = async (props) => {
     networkViz.toggleAll(networkVizToggleState);
   });
 
-  $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
-    // console.log(feedback);
-    brainInstance.applyHumanFeedback(feedback);
-  });
-
   $STATE.subscribe('switchFilterUp', updateMaterial);
 
   return {

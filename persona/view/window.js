@@ -1,7 +1,8 @@
 const mainContentHTML = `
   <div id="personasync">
     <div id="personasync-content">
-      <div id="resizeHandle"></div>
+      <div id="resizeHandle" title="Resize Persona Window"></div>
+      <div id="minimizeHandle" title="Minimize Persona"></div>
       <div class="response-container"></div>
       <canvas id="personawindow"></canvas>
       <div id="radialui"></div>
@@ -142,6 +143,7 @@ const setupWindow = async (options) => {
     const container = document.getElementById('personasync');
     const contentDiv = document.getElementById('personasync-content');
     const resizeHandle = document.getElementById('resizeHandle');
+    const minimizeHandle = document.getElementById('minimizeHandle');
     const canvas = document.getElementById('personawindow');
     const radialContainer = document.getElementById('radialui');
     const promptBox = document.getElementById('promptBox');
@@ -175,21 +177,24 @@ const setupWindow = async (options) => {
     });
 
     // Resize functionality (width and height)
-    let isResizing = false;
+    let isResizing = false, minimize = false;
     let startX, startY, startWidth, startHeight;
 
-    const handleResizeStart = (data) => {
+    const handleDragStart = (data) => {
         if (data.event.target === resizeHandle) {
-            isResizing = true;
-            startX = data.currentPosition.x;
-            startY = data.currentPosition.y;
-            startWidth = container.clientWidth;
-            startHeight = container.clientHeight;
-            data.event.preventDefault();
+          isResizing = true;
+          startX = data.currentPosition.x;
+          startY = data.currentPosition.y;
+          startWidth = container.clientWidth;
+          startHeight = container.clientHeight;
+          data.event.preventDefault();
+        }
+        else if (data.event.target === minimizeHandle) {
+          minimize = true;
         }
     };
 
-    const handleResizeMove = (data) => {
+    const handleMove = (data) => {
         if (!isResizing) return;
 
         const dx = data.currentPosition.x - startX;
@@ -211,24 +216,30 @@ const setupWindow = async (options) => {
         }
     };
 
-    const handleResizeEnd = () => {
+    const handleUp = () => {
+      if (isResizing) {
         isResizing = false;
         $STATE.set('containerNeedsUpdate', true);
+      }
+      else if(minimize) {
+        console.log('minimize the visualization!!!');
+      }
     };
 
     // Set up input manager handlers
-    inputManager.on('click', handleResizeStart);
-    inputManager.on('move', handleResizeMove);
-    inputManager.on('idle', handleResizeEnd);
-    inputManager.on('touchStart', handleResizeStart);
-    inputManager.on('touchMove', handleResizeMove);
-    inputManager.on('touchEnd', handleResizeEnd);
+    inputManager.on('click', handleDragStart);
+    inputManager.on('move', handleMove);
+    inputManager.on('idle', handleUp);
+    inputManager.on('touchStart', handleDragStart);
+    inputManager.on('touchMove', handleMove);
+    inputManager.on('touchEnd', handleUp);
 
     // Toggle UI visibility
     const toggleUI = () => {
         const isVisible = resizeHandle.style.display !== 'block';
         radialContainer.style.display = isVisible ? 'block' : 'none';
         resizeHandle.style.display = isVisible ? 'block' : 'none';
+        minimizeHandle.style.display = isVisible ? 'block' : 'none';
         promptBox.style.display = isVisible ? 'block' : 'none';
         container.style.border = isVisible ? '2px solid #000' : 'none';
 

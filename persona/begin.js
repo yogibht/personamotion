@@ -44,6 +44,12 @@ const startPersonaMotion = async (arguments) => {
     //   const loadedStorageData = await loadData();
     //   console.log(loadedStorageData);
     // })
+    //
+
+    $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
+      // console.log(feedback);
+      brainInstance.applyHumanFeedback(feedback);
+    });
   }
   catch(err){
     console.error(err);

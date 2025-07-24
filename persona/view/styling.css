@@ -62,6 +62,23 @@
     background-color: #0d47a1;
 }
 
+/* Minimize Handle */
+#minimizeHandle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background-color: #f55a42;
+    right: 0;
+    top: 0;
+    cursor: sw-resize;
+    z-index: 30;
+    display: none;
+}
+
+#minimizeHandle:hover {
+    background-color: #5e1f16;
+}
+
 /* UI Container */
 #radialui {
     position: absolute;
@@ -90,6 +107,7 @@
     will-change: transform;
     transition: all 0.2s ease;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    user-select: none;
 }
 
 .radialbutton:hover {

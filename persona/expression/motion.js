@@ -89,6 +89,7 @@ const prepEntityMotion = (matterResult, scene, props) => {
     }
   };
 
+  console.log(THREE.CCDIKSolver);
   // Initialize animation system
   mixer = new THREE.AnimationMixer(model);
 
