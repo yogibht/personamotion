@@ -20,5 +20,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Moveme server running at http://localhost:${PORT}`);
+  console.log(`personamotion test server running at http://localhost:${PORT}`);
 });

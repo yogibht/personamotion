@@ -3,9 +3,10 @@
   "name": "PersonaMotion",
   "version": "1.0",
   "description": "Persona Motion",
-  "permissions": ["scripting", "storage", "activeTab", "tabs", "<all_urls>"],
+  "permissions": ["scripting", "storage", "activeTab", "tabs"],
+  "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "extension/browserevents.js"
+    "service_worker": "./extension/browserevents.js"
   },
   "content_scripts": [
     {
