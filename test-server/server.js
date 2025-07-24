@@ -3,6 +3,17 @@ const path = require('path');
 const app = express();
 const PORT = 3000;
 
+app.get('/styling.css', (req, res) => {
+  res.sendFile(path.join(__dirname, '../', 'persona', 'view', '/styling.css'));
+});
+app.get('/bundle.js', (req, res) => {
+  res.sendFile(path.join(__dirname, '../', 'share', '/bundle.js'));
+});
+app.get('/worker.js', (req, res) => {
+  res.sendFile(path.join(__dirname, '../', 'compute', '/worker.js'));
+});
+app.use('/lib', express.static(path.join(__dirname, '../', 'lib')));
+app.use('/models', express.static(path.join(__dirname, '../', 'models')));
 app.use('/', express.static(path.join(__dirname, '../', 'configurator')));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../', 'configurator', 'welcome.html'));

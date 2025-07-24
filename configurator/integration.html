@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Welcome To PersonaSync</title>
+        <link rel="stylesheet" href="/styling.css" />
+
+        <script src="/lib/brain.js"></script>
+        <script src="/lib/three.min.js"></script>
+        <script src="/lib/CCDIKSolver.js"></script>
+        <script src="/lib/TrackballControls.js"></script>
+        <script src="/lib/GLTFLoader.js"></script>
+
+        <script src="/bundle.js" defer></script>
+    </head>
+    <body>
+        <script>
+            const ENV = {
+                API: {
+                    GEMINI: {
+                        key: "AIzaSyAWAccrXBBNViMsEms3zHAx3S_mAdyMIt4",
+                        url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                    },
+                },
+            };
+
+            const worker = new Worker("/worker.js");
+            const modelURL = "/models/persona.glb";
+
+            window.addEventListener("DOMContentLoaded", async () => {
+                await startPersonaMotion({
+                    worker,
+                    modelURL,
+                    ENV,
+                });
+            });
+        </script>
+    </body>
+</html>

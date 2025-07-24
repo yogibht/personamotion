@@ -203,7 +203,7 @@ const setupWindow = async (options) => {
         canvas.width = newWidth;
         canvas.height = newHeight;
 
-        if (radialContainer.style.display === 'block') {
+        if (resizeHandle.style.display === 'block') {
             UIComponents.buttons.render(container, radialContainer, {
                 execFunctions: options.execFunctions,
                 buttonLayout: options.buttonLayout
@@ -226,10 +226,11 @@ const setupWindow = async (options) => {
 
     // Toggle UI visibility
     const toggleUI = () => {
-        const isVisible = radialContainer.style.display !== 'block';
+        const isVisible = resizeHandle.style.display !== 'block';
         radialContainer.style.display = isVisible ? 'block' : 'none';
         resizeHandle.style.display = isVisible ? 'block' : 'none';
         promptBox.style.display = isVisible ? 'block' : 'none';
+        container.style.border = isVisible ? '2px solid #000' : 'none';
 
         if (isVisible) {
             UIComponents.buttons.render(container, radialContainer, {
