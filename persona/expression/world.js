@@ -1,5 +1,5 @@
 const world = async (props) => {
-  const { brainInstance, canvas, modelURL } = props;
+  const { storageData, brainInstance, canvas, modelURL } = props;
 
   // Initialize renderer
   const renderer = new THREE.WebGLRenderer({
@@ -45,7 +45,6 @@ const world = async (props) => {
   const postScene = new THREE.Scene();
   const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-
   let postMaterial = createPostProcessingShader({
     width: canvas.width,
     height: canvas.height,
@@ -53,6 +52,7 @@ const world = async (props) => {
     colorMult: new THREE.Color(1.0, 1.0, 1.0)
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
+  quad.frustumCulled = false;
 
   const updateMaterial = (filterStyle) => {
     console.log("Filter Style", filterStyle)
@@ -71,18 +71,17 @@ const world = async (props) => {
   let anim, animationController, networkViz, networkVizToggleState = false;
   try {
     const brainData = brainInstance.generateGraphData();
-    // networkViz = createLivingBrainViz(scene, brainData, {
-    //   width: canvas.width,
-    //   height: canvas.height,
-    // });
-    networkViz = createGalaxyBrainViz(scene, brainData, {
-      particleSize: 2.0,
-      brightness: 2.0,
-      rotationSpeed: 0.1,
-      spiralTightness: 2.0,
-      numArms: 5
+    networkViz = createLivingBrainViz(scene, brainData, {
+      width: canvas.width,
+      height: canvas.height,
     });
-
+    // networkViz = createGalaxyBrainViz(scene, brainData, {
+    //   particleSize: 2.0,
+    //   brightness: 2.0,
+    //   rotationSpeed: 0.1,
+    //   spiralTightness: 2.0,
+    //   numArms: 5
+    // });
     networkViz.toggle(networkVizToggleState);
 
     const entity = await prepEntity(scene, {

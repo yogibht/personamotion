@@ -9,6 +9,8 @@ const startPersonaMotion = async (arguments) => {
   };
 
   try {
+    const storageData = await loadData();
+
     const { brainInstance } = await initiateLeftBrain();
     await initiateRightBrain();
 
@@ -16,6 +18,7 @@ const startPersonaMotion = async (arguments) => {
       toggleBrainViz: false
     };
     const { container, canvas, inputManager } = await renderViewWindow({
+      storageData,
       brainInstance,
       buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
       promptPosition: 'top', // or 'bottom'
@@ -38,13 +41,7 @@ const startPersonaMotion = async (arguments) => {
       ],
       ENV
     });
-    const newWorld = await world({ brainInstance, canvas, modelURL, ENV });
-
-    // window.addEventListener("keyup", async (event) => {
-    //   const loadedStorageData = await loadData();
-    //   console.log(loadedStorageData);
-    // })
-    //
+    const newWorld = await world({ storageData, brainInstance, canvas, modelURL, ENV });
 
     $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
       // console.log(feedback);

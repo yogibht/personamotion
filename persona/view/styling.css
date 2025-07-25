@@ -148,6 +148,64 @@
     bottom: 20px;
 }
 
+.radialbutton.sway-cw {
+    animation: radialSwayCW 2s ease-in-out infinite;
+}
+
+.radialbutton.sway-ccw {
+    animation: radialSwayCCW 2s ease-in-out infinite;
+}
+
+#promptBox.swaying {
+    animation: sway 3s ease-in-out infinite;
+    transform-origin: center bottom;
+}
+
+#wipBanner {
+    position: fixed;
+    bottom: 15px;
+    right: 15px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%; /* Perfect circle */
+    background-color: #ffa500;
+    color: black;
+    font-size: 11px;
+    display: none; /* Hidden by default */
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    opacity: 0.9;
+    border: 1.5px dashed #000;
+    animation: gentle-bounce 2s infinite ease-in-out;
+}
+
+#clickMeSign {
+    position: absolute;
+    top: 40%;
+    left: 65%;
+    transform: translateY(-50%) rotate(-3deg);
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #ff4757;
+    border-radius: 3px;
+    font-family: "Arial Narrow", sans-serif;
+    font-weight: bold;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow:
+        0 0 8px rgba(255, 71, 87, 0.8),
+        inset 0 0 4px rgba(255, 71, 87, 0.5);
+    z-index: 1000;
+    cursor: pointer;
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    animation:
+        sway 4s ease-in-out infinite,
+        neon-pulse 1.5s infinite alternate;
+}
+
 /* Animations (keep existing) */
 @keyframes sway {
     0%,
@@ -179,15 +237,25 @@
     }
 }
 
-.radialbutton.sway-cw {
-    animation: radialSwayCW 2s ease-in-out infinite;
+@keyframes gentle-bounce {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
 }
 
-.radialbutton.sway-ccw {
-    animation: radialSwayCCW 2s ease-in-out infinite;
-}
-
-#promptBox.swaying {
-    animation: sway 3s ease-in-out infinite;
-    transform-origin: center bottom;
+@keyframes neon-pulse {
+    from {
+        box-shadow:
+            0 0 6px rgba(255, 71, 87, 0.6),
+            inset 0 0 3px rgba(255, 71, 87, 0.4);
+    }
+    to {
+        box-shadow:
+            0 0 10px rgba(255, 71, 87, 1),
+            inset 0 0 5px rgba(255, 71, 87, 0.7);
+    }
 }

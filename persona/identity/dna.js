@@ -1,8 +1,8 @@
 const STORAGE_KEY = 'personasync_v1.0_STORAGE';
 
 // For testing purposes only
-const saveData = (data) => {
-  chrome.storage.local.set({ [STORAGE_KEY]: data });
+const saveData = async (data) => {
+  await chrome.storage.local.set({ [STORAGE_KEY]: data });
 };
 
 const loadData = async () => {
@@ -12,7 +12,7 @@ const loadData = async () => {
         console.log('success retrieving: ', result[STORAGE_KEY]);
         resolve(result[STORAGE_KEY]);
       } else {
-        reject("No Data");
+        resolve({});
       }
     });
   });

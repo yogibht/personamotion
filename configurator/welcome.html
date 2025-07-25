@@ -2,11 +2,71 @@
 <html>
     <head>
         <meta charset="UTF-8" />
-        <title>Welcome To PersonaSync</title>
-        <link rel="stylesheet" href="./welcome.css" />
+        <title>PersonaSync Configurator</title>
+        <link rel="stylesheet" href="welcome.css" />
     </head>
     <body>
-        <div id="welcome-content"></div>
-        <script src="./welcome.js"></script>
+        <div class="config-container">
+            <h1>PersonaSync Configuration</h1>
+
+            <div class="current-config">
+                <h2>Current Configuration</h2>
+                <div id="config-display"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="theme">Theme Style</label>
+                <select id="theme">
+                    <option value="1">Grayscale</option>
+                    <option value="2">Vignette</option>
+                    <option value="3">Scanlines</option>
+                    <option value="4">EdgeDetection</option>
+                    <option value="5">Glow</option>
+                    <option value="6">ASCII</option>
+                    <option value="7">Buzzed</option>
+                    <option value="8">Fireworks</option>
+                    <option value="9">Pixelated</option>
+                    <option value="10">WhoAmI</option>
+                    <option value="11">Wavvy</option>
+                    <option value="12">Fluid</option>
+                    <option value="13">Bouncy</option>
+                    <option value="14">Ethereal</option>
+                    <option value="15">RainDrops</option>
+                    <option value="auto">Default</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="sync-frequency">Sync Frequency</label>
+                <select id="sync-frequency">
+                    <option value="15">Every 15 minutes</option>
+                    <option value="30">Every 30 minutes</option>
+                    <option value="60">Every hour</option>
+                    <option value="manual">Manual Only</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="api-key">API Key (Optional)</label>
+                <input
+                    type="text"
+                    id="api-key"
+                    placeholder="Enter your API key"
+                />
+            </div>
+
+            <div class="form-group checkbox-group">
+                <input type="checkbox" id="notifications" />
+                <label for="notifications">Enable Notifications</label>
+            </div>
+
+            <div class="button-group">
+                <button id="save-btn">Save Changes</button>
+                <button id="reset-btn">Reset to Defaults</button>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
+
+        <script src="welcome.js"></script>
     </body>
 </html>

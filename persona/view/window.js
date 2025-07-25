@@ -8,6 +8,8 @@ const mainContentHTML = `
       <div id="radialui"></div>
       <input type="text" id="promptBox" placeholder="Ask me something..." />
     </div>
+    <div id="wipBanner">WIP🛠</div>
+    <div id="clickMeSign">Click Me</div>
   </div>
 `;
 
@@ -139,6 +141,8 @@ const renderViewWindow = async (options = {}) => {
 };
 
 const setupWindow = async (options) => {
+    let firstClick = options.storageData?.firstClicked || false;
+
     const inputManager = createInputManager(window);
     const container = document.getElementById('personasync');
     const contentDiv = document.getElementById('personasync-content');
@@ -147,6 +151,9 @@ const setupWindow = async (options) => {
     const canvas = document.getElementById('personawindow');
     const radialContainer = document.getElementById('radialui');
     const promptBox = document.getElementById('promptBox');
+    const wipBanner = document.getElementById('wipBanner');
+    const clickMeSign = document.getElementById('clickMeSign');
+    if (firstClick) clickMeSign.style.display = 'none';
 
     // Initialize canvas
     canvas.width = container.clientWidth;
@@ -249,9 +256,20 @@ const setupWindow = async (options) => {
                 buttonLayout: options.buttonLayout
             });
         }
+
+        if (!firstClick) {
+          firstClick = true;
+          clickMeSign.style.display = 'none';
+          saveData({
+            firstClicked: true
+          })
+        }
     };
 
     $STATE.subscribe('toggleUI', toggleUI);
+    $STATE.subscribe('toggleBrainViz', (state) => {
+      wipBanner.style.display = state ? 'flex' : 'none';
+    })
 
     return {
         container,
