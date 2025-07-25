@@ -71,11 +71,19 @@ const world = async (props) => {
   let anim, animationController, networkViz, networkVizToggleState = false;
   try {
     const brainData = brainInstance.generateGraphData();
-    networkViz = createLivingBrainViz(scene, brainData, {
-      width: canvas.width,
-      height: canvas.height,
+    // networkViz = createLivingBrainViz(scene, brainData, {
+    //   width: canvas.width,
+    //   height: canvas.height,
+    // });
+    networkViz = createGalaxyBrainViz(scene, brainData, {
+      particleSize: 2.0,
+      brightness: 2.0,
+      rotationSpeed: 0.1,
+      spiralTightness: 2.0,
+      numArms: 5
     });
-    networkViz.toggleAll(networkVizToggleState);
+
+    networkViz.toggle(networkVizToggleState);
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -90,7 +98,6 @@ const world = async (props) => {
     animationController = entity.animationController;
     animationController.setFPS(60);
     animationController.play('happyandidle', {loop: true});
-
 
     // animationController.createIKAnimation('wave', {
     //   mixamorigLeftHand: t => ({
@@ -141,8 +148,8 @@ const world = async (props) => {
         if (networkVizToggleState) {
           const brainData = brainInstance.generateGraphData();
           // console.log(networkViz.getPerformanceInfo());
-          networkViz.animate(camera, performance.now());
           networkViz.updateGraph(brainData);
+          networkViz.animate(camera, performance.now());
         }
 
         model.traverse((object) => {
@@ -227,7 +234,7 @@ const world = async (props) => {
 
   $STATE.subscribe('toggleBrainViz', (state) => {
     networkVizToggleState = state;
-    networkViz.toggleAll(networkVizToggleState);
+    networkViz.toggle(networkVizToggleState);
   });
 
   $STATE.subscribe('switchFilterUp', updateMaterial);

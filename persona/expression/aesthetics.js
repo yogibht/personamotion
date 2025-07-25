@@ -1062,14 +1062,14 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   group.add(sphereMesh);
 
   const nodeMap = new Map();
-  function spherePos(i, total, layer, maxLayer) {
+  const spherePos = (i, total, layer, maxLayer) => {
     const y = 1.0 - 2.0 * (i / total);
     const radius = Math.sqrt(1.0 - y * y);
     const theta = Math.PI * (3.0 - Math.sqrt(5.0)) * i + layer * 0.2;
     return new THREE.Vector3(radius * Math.cos(theta), y, radius * Math.sin(theta));
   }
 
-  function updateGraph(graph) {
+  const updateGraph = (graph) => {
     const nodes = graph.nodes || [], links = graph.links || [];
     const nCount = Math.min(nodes.length, MAX_NODES), lCount = Math.min(links.length, MAX_LINKS);
     const id2idx = new Map(nodes.map((n, i) => [n.id, i]));
@@ -1095,7 +1095,7 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     sphereMat.uniforms.linkCnt.value = lIdx;
   }
 
-  function animate(cam, t) {
+  const animate = (cam, t) => {
     sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
     sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
     // sphereMat.uniforms.uTime.value = t; // IMPORTANT: Update the time uniform each frame for animation
@@ -1109,7 +1109,338 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     updateGraph,
     animate,
     setScale: s => sphereMesh.scale.setScalar(s),
-    toggleAll: v => { sphereMesh.visible = v; }
+    toggle: v => { sphereMesh.visible = v; }
+  };
+};
+
+const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
+  const MAX_PARTICLES = 8192;
+
+  const group = new THREE.Group();
+  group.scale.set(0.5, 0.5, 0.5);
+  group.position.y = 2.5;
+  scene.add(group);
+
+  // Galaxy-style uniforms adapted for brain networks
+  const uniforms = {
+    uSize: { value: props.particleSize || 1.5 },
+    uTime: { value: 0.0 },
+    uMap: { value: null },
+    uBrightness: { value: props.brightness || 2.0 }
+  };
+
+  // Create circular particle texture
+  const createCircleTexture = () => {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+    gradient.addColorStop(0.7, 'rgba(255,255,255,0.3)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  };
+
+  uniforms.uMap.value = createCircleTexture();
+
+  // Galaxy vertex shader with neural network influence
+  const vertexShader = `
+    uniform mat4 projectionMatrix;
+    uniform mat4 modelMatrix;
+    uniform mat4 viewMatrix;
+
+    attribute vec3 position;
+    attribute vec3 color;
+    attribute float aScale;
+    attribute float aDistance;
+    attribute float aNeuralInfluence;
+    attribute float aArmIndex;
+
+    uniform float uTime;
+    uniform float uSize;
+
+    varying vec3 vColor;
+    varying float vDistance;
+    varying float vNeuralInfluence;
+
+    void main() {
+        vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+        // Static galaxy structure - no time-based movement of vertices
+        // Particles stay in their fixed spiral positions
+
+        vec4 viewPosition = viewMatrix * modelPosition;
+        vec4 projectedPosition = projectionMatrix * viewPosition;
+        gl_Position = projectedPosition;
+
+        // Size varies with neural influence and distance (static positioning)
+        float neuralBrightening = (1.0 + aNeuralInfluence * 2.0);
+        float distanceAttenuation = (1.0 - aDistance * 0.3);
+        gl_PointSize = uSize * aScale * neuralBrightening * distanceAttenuation;
+        gl_PointSize *= (1.0 / -viewPosition.z);
+
+        vColor = color;
+        vDistance = aDistance;
+        vNeuralInfluence = aNeuralInfluence;
+    }
+  `;
+
+  // Galaxy fragment shader with neural-inspired effects
+  const fragmentShader = `
+    precision highp float;
+
+    uniform sampler2D uMap;
+    uniform float uBrightness;
+
+    varying vec3 vColor;
+    varying float vDistance;
+    varying float vNeuralInfluence;
+
+    // Neural firing pattern noise (only for visual effects, not positioning)
+    float hash21(in vec2 n) {
+        return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+    }
+
+    float neuralFiring(vec2 p, float influence) {
+        vec2 i = floor(p * 8.0);
+        vec2 f = fract(p * 8.0);
+
+        // Static noise based on position and neural influence only
+        float a = hash21(i + influence * 10.0);
+        float b = hash21(i + vec2(1.0, 0.0) + influence * 10.0);
+        float c = hash21(i + vec2(0.0, 1.0) + influence * 10.0);
+        float d = hash21(i + vec2(1.0, 1.0) + influence * 10.0);
+
+        vec2 u = f * f * (3.0 - 2.0 * f);
+
+        float noise = mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+
+        // Static firing pattern based on noise threshold
+        return step(0.5, noise) * (noise * 0.8 + 0.2);
+    }
+
+    void main() {
+        vec2 uv = vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y);
+
+        vec4 pointTexture = texture2D(uMap, uv);
+        if (pointTexture.a < 0.1) discard;
+
+        // Static neural firing effect (no time dependency)
+        float firing = neuralFiring(gl_PointCoord.xy, vNeuralInfluence);
+        float neuralPulse = vNeuralInfluence * firing * 0.8 + 0.2;
+
+        // Galaxy-style color variation with neural influence
+        vec3 finalColor = vColor * pointTexture.rgb;
+
+        // Brighter stars have neural activity influence
+        float neuralGlow = 1.0 + vNeuralInfluence * neuralPulse * 2.0;
+
+        // Distance-based dimming (like real galaxy)
+        float distanceDim = 1.0 - vDistance * 0.4;
+
+        gl_FragColor = vec4(finalColor * neuralGlow * distanceDim, pointTexture.a) * uBrightness;
+    }
+  `;
+
+  // Create galaxy geometry
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array(MAX_PARTICLES * 3);
+  const colors = new Float32Array(MAX_PARTICLES * 3);
+  const scales = new Float32Array(MAX_PARTICLES);
+  const distances = new Float32Array(MAX_PARTICLES);
+  const neuralInfluences = new Float32Array(MAX_PARTICLES);
+  const armIndices = new Float32Array(MAX_PARTICLES);
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
+  geometry.setAttribute('aDistance', new THREE.BufferAttribute(distances, 1));
+  geometry.setAttribute('aNeuralInfluence', new THREE.BufferAttribute(neuralInfluences, 1));
+  geometry.setAttribute('aArmIndex', new THREE.BufferAttribute(armIndices, 1));
+
+  const material = new THREE.RawShaderMaterial({
+    uniforms: uniforms,
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  const galaxyPoints = new THREE.Points(geometry, material);
+  group.add(galaxyPoints);
+
+  let particleCount = 0;
+
+  // Generate galaxy structure influenced by brain network
+  const generateGalaxyFromBrain = (graph) => {
+    const nodes = graph.nodes || [];
+    const links = graph.links || [];
+
+    // Build connection map
+    const connectionMap = new Map();
+    nodes.forEach(node => {
+      connectionMap.set(node.id, {
+        connections: 0,
+        totalWeight: 0,
+        bias: typeof node.bias === 'number' ? node.bias : 0
+      });
+    });
+
+    links.forEach(link => {
+      const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+      const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+      const weight = Math.abs(link.bias || 0);
+
+      [sourceId, targetId].forEach(id => {
+        if (connectionMap.has(id)) {
+          const info = connectionMap.get(id);
+          info.connections++;
+          info.totalWeight += weight;
+        }
+      });
+    });
+
+    particleCount = 0;
+    const connectionValues = Array.from(connectionMap.values());
+    const maxConnections = Math.max(1, ...connectionValues.map(c => c.connections));
+    const majorHubs = nodes
+      .filter(n => connectionMap.get(n.id).connections > 0)
+      .sort((a, b) => connectionMap.get(b.id).connections - connectionMap.get(a.id).connections)
+      .slice(0, typeof props.numArms === 'number' ? props.numArms : Math.min(6, Math.max(2, Math.floor(nodes.length / 10))));
+
+    const armCount = majorHubs.length;
+    const particlesPerArm = Math.floor(MAX_PARTICLES * 0.4 / armCount);
+    const randomParticles = MAX_PARTICLES - (particlesPerArm * armCount);
+    let maxDistance = 0;
+
+    // Helper: Convert normalized bias to HSL color
+    const colorFromBias = (bias, dim = false) => {
+      const clamped = Math.max(-1, Math.min(1, bias));
+      const t = (clamped + 1) / 2;
+
+      let hue = 0.67 - t * 0.67; // blue → red
+      let sat = dim ? 0.6 : 0.9;
+      let light = dim ? 0.3 + t * 0.2 : 0.5 + t * 0.3;
+
+      return new THREE.Color().setHSL(hue, sat, light);
+    };
+
+    // Generate spiral arms from major hubs
+    majorHubs.forEach((hub, armIndex) => {
+      const info = connectionMap.get(hub.id);
+      const sizeFactor = info.connections / maxConnections;
+      const spiralTightness = (props.spiralTightness || 4.0) * (1 + sizeFactor);
+
+      for (let i = 0; i < particlesPerArm && particleCount < MAX_PARTICLES; i++) {
+        const norm = i / particlesPerArm;
+        const angle = (armIndex / armCount) * Math.PI * 2 + norm * spiralTightness;
+
+        const radius = 0.2 + norm * (1.2 + sizeFactor * 0.8);
+        const radiusVar = (Math.random() - 0.5) * 0.1;
+        const thetaVar = (Math.random() - 0.5) * 0.05;
+
+        const finalRadius = radius + radiusVar;
+        const finalTheta = angle + thetaVar;
+
+        const x = Math.cos(finalTheta) * finalRadius;
+        const y = (Math.random() - 0.5) * 0.05 * (1 - norm * 0.7);
+        const z = Math.sin(finalTheta) * finalRadius;
+
+        vertices.set([x, y, z], particleCount * 3);
+        maxDistance = Math.max(maxDistance, finalRadius);
+
+        const color = colorFromBias(info.bias);
+        colors.set([color.r, color.g, color.b], particleCount * 3);
+
+        scales[particleCount] = 0.5 + sizeFactor * 1.5;
+        distances[particleCount] = norm;
+        neuralInfluences[particleCount] = sizeFactor * (0.5 + Math.random() * 0.5);
+        armIndices[particleCount] = armIndex;
+
+        particleCount++;
+      }
+    });
+
+    // Fill remaining with background particles
+    const backgroundNodes = nodes.filter(n => !majorHubs.includes(n));
+
+    for (let i = 0; i < randomParticles && particleCount < MAX_PARTICLES; i++) {
+      const node = backgroundNodes[i % backgroundNodes.length];
+      const info = connectionMap.get(node.id) || { connections: 0, bias: 0 };
+
+      const radius = Math.pow(Math.random(), 0.7) * 1.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI * 0.1;
+
+      const x = Math.cos(theta) * Math.cos(phi) * radius;
+      const y = Math.sin(phi) * radius * 0.2;
+      const z = Math.sin(theta) * Math.cos(phi) * radius;
+
+      vertices.set([x, y, z], particleCount * 3);
+      maxDistance = Math.max(maxDistance, radius);
+
+      const color = colorFromBias(info.bias, true);
+      colors.set([color.r, color.g, color.b], particleCount * 3);
+
+      const sizeFactor = info.connections / maxConnections;
+      scales[particleCount] = 0.2 + sizeFactor * 1.0;
+      distances[particleCount] = radius / maxDistance;
+      neuralInfluences[particleCount] = sizeFactor * (0.2 + Math.random() * 0.3);
+      armIndices[particleCount] = -1;
+
+      particleCount++;
+    }
+
+    // Normalize distances
+    for (let i = 0; i < particleCount; i++) {
+      const x = vertices[i * 3], z = vertices[i * 3 + 2];
+      const r = Math.sqrt(x * x + z * z);
+      distances[i] = r / maxDistance;
+    }
+
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.color.needsUpdate = true;
+    geometry.attributes.aScale.needsUpdate = true;
+    geometry.attributes.aDistance.needsUpdate = true;
+    geometry.attributes.aNeuralInfluence.needsUpdate = true;
+    geometry.attributes.aArmIndex.needsUpdate = true;
+
+    geometry.setDrawRange(0, particleCount);
+  }
+
+  const updateGraph = (graph) => {
+    generateGalaxyFromBrain(graph);
+  }
+
+  const  animate = (camera, time) => {
+    // Only rotate the entire galaxy group (not individual particles)
+    group.rotation.y += 0.002;
+
+    // Add slight wobble for more organic feel
+    group.rotation.x = UTILITIES.toRadian(35) + Math.sin(time * 0.001) * 0.05;
+    group.rotation.z = Math.cos(time * 0.0015) * 0.03;
+  }
+
+  // Initialize
+  updateGraph(initialGraph || { nodes: [], links: [] });
+
+  return {
+    updateGraph,
+    animate,
+    setScale: (s) => group.scale.setScalar(s),
+    toggle: (visible) => { group.visible = visible; },
+    setBrightness: (brightness) => { uniforms.uBrightness.value = brightness; },
+    setParticleSize: (size) => { uniforms.uSize.value = size; }
   };
 };
 
@@ -1117,6 +1448,7 @@ window.createShaderMaterial = createShaderMaterial;
 window.createDebugMaterial = createDebugMaterial;
 window.createPostProcessingShader = createPostProcessingShader;
 window.createLivingBrainViz = createLivingBrainViz;
+window.createGalaxyBrainViz = createGalaxyBrainViz;
 
 const DUMMY_DATA = {
   haiku: `

@@ -1,146 +1,147 @@
 const prepEntityMotion = (matterResult, scene, props) => {
-  const { debug = false, enableIK = false, initialAnimation } = props;
-  const { model, gltf, debugHelpers } = matterResult;
+  const { model, gltf, debugHelpers, boneData } = matterResult;
+  const { debug = false } = props;
 
-  let mixer, raycastPlane;
+  let mixer, raycastPlane, ikSolver;
   const animationStates = {};
-  let globalSpeed = 1.0;
+  let globalSpeed = 1;
   let targetFPS = 60;
 
-  const animationController = {
-    play: (name, options = {}) => {
-      const state = animationStates[name];
-      if (!state) return;
-      state.action.reset();
-      state.currentSpeed = options.speed || state.baseSpeed;
-      state.action.setEffectiveTimeScale(state.currentSpeed * globalSpeed);
-      state.action.setLoop(options.loop || state.loop);
-      state.action.clampWhenFinished = options.clamp || false;
-      state.action.play();
-      state.isPlaying = true;
-    },
-    stop: (name) => {
-      const state = animationStates[name];
-      if (state) {
-        state.action.stop();
-        state.isPlaying = false;
+  /* collect bones once */
+  const bones = [];
+  const boneByName = {};
+  model.traverse(o => {
+    if (o.isBone) {
+      bones.push(o);
+      boneByName[o.name] = o;
+    }
+  });
+
+  /* build full skeleton that CCDIKSolver expects */
+  const skeleton = {
+    bones,
+    getBoneByName: n => boneByName[n] || null
+  };
+  model.skeleton = skeleton;
+  ikSolver = new THREE.CCDIKSolver(model, []);
+
+  /* helper: create IK clip + CCD entry */
+  const createIKAnimation = (name, chains, dur = 1) => {
+    const tracks = [];
+    ikSolver.iks.length = 0; // clear previous rigs
+
+    Object.entries(chains).forEach(([boneName, fn]) => {
+      const bone = boneByName[boneName];
+      if (!bone) return;
+
+      /* keyframes */
+      const times = [], px = [], py = [], pz = [];
+      for (let i = 0; i <= 60; i++) {
+        const t = i / 60;
+        const p = fn(t);
+        times.push(t * dur);
+        px.push(p.x ?? 0);
+        py.push(p.y ?? 0);
+        pz.push(p.z ?? 0);
       }
+      tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, [...px, ...py, ...pz]));
+
+      /* CCD definition */
+      const links = [];
+      let parent = bone.parent;
+      while (parent && parent !== model && parent.isBone && links.length < 6) {
+        links.unshift({ index: bones.indexOf(parent) });
+        parent = parent.parent;
+      }
+      ikSolver.iks.push({
+        target: bones.indexOf(bone),
+        effector: bones.indexOf(bone),
+        links
+      });
+    });
+
+    const clip = new THREE.AnimationClip(name, dur, tracks);
+    const action = mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity);
+    animationStates[name] = {
+      action, isIK: true, baseSpeed: 1, currentSpeed: 1, weight: 0,
+      isPlaying: false, loop: THREE.LoopRepeat, frameCount: 0,
+      duration: dur, fadeDuration: 0.2
+    };
+    return animationStates[name];
+  };
+
+  const animationController = {
+    createIKAnimation,
+    play: (name, opts = {}) => {
+      const st = animationStates[name];
+      if (!st) return;
+      st.action.reset()
+        .setEffectiveTimeScale((opts.speed ?? st.baseSpeed) * globalSpeed)
+        .setLoop(opts.loop ?? st.loop, Infinity)
+        .play();
+      st.isPlaying = true;
     },
-    setGlobalSpeed: (speed) => {
-      globalSpeed = speed;
-      Object.values(animationStates).forEach(state => {
-        if (state.isPlaying) {
-          state.action.setEffectiveTimeScale(state.currentSpeed * globalSpeed);
-        }
+    stop: name => {
+      const st = animationStates[name];
+      if (st) { st.action.stop(); st.isPlaying = false; }
+    },
+    setGlobalSpeed: s => {
+      globalSpeed = s;
+      Object.values(animationStates).forEach(st => {
+        if (st.isPlaying) st.action.setEffectiveTimeScale(st.currentSpeed * globalSpeed);
       });
     },
-    setAnimationSpeed: (name, speed) => {
-      const state = animationStates[name];
-      if (state) {
-        state.currentSpeed = speed;
-        state.action.setEffectiveTimeScale(speed * globalSpeed);
-      }
-    },
-    setFPS: (fps) => {
+    setFPS: fps => {
       targetFPS = fps;
-      animationController.setGlobalSpeed((fps / 60) * globalSpeed); // Fixed this reference
+      animationController.setGlobalSpeed((fps / 60) * globalSpeed);
     },
-    crossfade: (fromName, toName, duration = 0.5) => {
-      if (animationStates[fromName] && animationStates[toName]) {
-        animationStates[fromName].action.fadeOut(duration);
-        animationStates[toName].action
-          .reset()
-          .fadeIn(duration)
-          .play();
-      }
+    crossfade: (from, to, dur = 0.5) => {
+      const f = animationStates[from], t = animationStates[to];
+      if (f && t) { f.action.fadeOut(dur); t.action.reset().fadeIn(dur).play(); }
     },
-    toggleDebug: (enabled) => {
-      debugHelpers.visible = enabled;
-      raycastPlane.material.visible = enabled;
+    toggleDebug: v => {
+      debugHelpers.visible = v;
+      if (raycastPlane) raycastPlane.material.visible = v;
     },
-    logState: () => {
-      console.group('Animation State');
-      console.table(Object.entries(animationStates).map(([name, state]) => ({
-        Name: name,
-        Playing: state.isPlaying,
-        Speed: state.currentSpeed,
-        Progress: (state.action.time / state.duration).toFixed(2),
-        Frames: state.frameCount
-      })));
-      console.groupEnd();
-    },
-    update: (delta) => {
-      const adjustedDelta = delta * (targetFPS / 60) * globalSpeed;
-      mixer.update(adjustedDelta);
-      Object.values(animationStates).forEach(state => {
-        if (state.isPlaying) {
-          state.frameCount++;
-          state.weight = state.action.getEffectiveWeight();
-        }
+    logState: () => console.table(Object.entries(animationStates).map(([n, s]) => ({ Name: n, Playing: s.isPlaying }))),
+    update: delta => {
+      const d = delta * (targetFPS / 60) * globalSpeed;
+      mixer.update(d);
+      if (ikSolver) ikSolver.update();
+      Object.values(animationStates).forEach(s => {
+        if (s.isPlaying) { s.frameCount++; s.weight = s.action.getEffectiveWeight(); }
       });
     },
     getAnimations: () => Object.keys(animationStates),
-    getCurrentAnimations: () => Object.entries(animationStates)
-      .filter(([_, state]) => state.isPlaying)
-      .map(([name]) => name),
-    getProgress: (name) => {
-      const state = animationStates[name];
-      return state ? state.action.time / state.duration : 0;
-    }
+    getCurrentAnimations: () => Object.entries(animationStates).filter(([, s]) => s.isPlaying).map(([n]) => n),
+    getProgress: n => { const s = animationStates[n]; return s ? s.action.time / s.duration : 0; }
   };
 
-  console.log(THREE.CCDIKSolver);
-  // Initialize animation system
   mixer = new THREE.AnimationMixer(model);
-
-  // Set up traditional animations
   if (gltf?.animations) {
     gltf.animations.forEach(clip => {
-      const action = mixer.clipAction(clip);
+      const act = mixer.clipAction(clip);
       animationStates[clip.name] = {
-        action,
-        isIK: false,
-        baseSpeed: 1.0,
-        currentSpeed: 1.0,
-        weight: 0,
-        isPlaying: false,
-        loop: THREE.LoopRepeat,
-        frameCount: 0,
-        duration: clip.duration,
-        fadeDuration: 0.2
+        action: act, isIK: false, baseSpeed: 1, currentSpeed: 1, weight: 0,
+        isPlaying: false, loop: THREE.LoopRepeat, frameCount: 0,
+        duration: clip.duration, fadeDuration: 0.2
       };
     });
-    console.log('Available animations:', Object.keys(animationStates));
   }
 
-  // Play initial animation if specified
-  if (initialAnimation && animationStates[initialAnimation]) {
-    animationController.play(initialAnimation);
-  }
-
-  // Raycast plane setup
   raycastPlane = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 2),
-    new THREE.MeshBasicMaterial({
-      visible: debug,
-      transparent: true,
-      opacity: 0.3,
-      color: 0x00ff00,
-      side: THREE.DoubleSide
-    })
+    new THREE.MeshBasicMaterial({ visible: debug, transparent: true, opacity: 0.3, color: 0x00ff00, side: THREE.DoubleSide })
   );
   raycastPlane.name = 'raycastPlane';
-  raycastPlane.position.y = 1;
-  raycastPlane.position.z = 0.1;
+  raycastPlane.position.set(0, 1, 0.1);
   model.add(raycastPlane);
 
   return {
     animationController,
     raycastPlane,
-    dispose: () => {
-      if (mixer) mixer.uncacheRoot(model);
-    }
+    ikSolver,
+    dispose: () => { if (mixer) mixer.uncacheRoot(model); }
   };
 };
-
 window.prepEntityMotion = prepEntityMotion;
