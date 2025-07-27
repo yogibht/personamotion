@@ -8,11 +8,19 @@ const startPersonaMotion = async (arguments) => {
     }
   };
 
-  try {
-    const storageData = await loadData();
+  let storageData, brainInstance;
+  try{
+    storageData = await loadData();
 
-    const { brainInstance } = await initiateLeftBrain();
+    const leftBrain = await initiateLeftBrain();
+    brainInstance = leftBrain.brainInstance;
     await initiateRightBrain();
+  }
+  catch(err){
+    console.error("Brain load error: ", err);
+  }
+
+  try {
 
     const initialFunctionalState = {
       toggleBrainViz: false

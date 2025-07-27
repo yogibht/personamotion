@@ -148,27 +148,41 @@ const findFPS = ()=> {
 	});
 };
 
-const remoteRequest = async (userdata, APIKEY, URL, model = 'gemini') => {
+const remoteRequest = async ({
+  userData,
+  APIKEY,
+  URL,
+  model
+}) => {
+
+  if (!model) model = 'GEMINI';
+
   try {
     const headers = {
       'Content-Type': 'application/json',
       'X-goog-api-key': APIKEY
     };
-    if(model === 'deepseek' || model === 'openai'){
+    if(model === 'DEEPSEEK' || model === 'OPENAI'){
       delete headers['X-goog-api-key'];
       headers['Authorization'] = `Bearer ${APIKEY}`;
+    }
+    else if(model === 'CLAUDE'){
+      delete headers['X-goog-api-key'];
+      headers['x-api-key'] = APIKEY;
+      headers['anthropic-version'] = '2023-06-01';
     }
     const response = await fetch(URL, {
       method: 'POST',
       headers,
-      body: JSON.stringify(userdata)
+      body: JSON.stringify(userData)
     });
-    if(model === 'gemini'){
+    if(model === 'GEMINI'){
       const data = await response.text();
       return data;
     }
     else{
       const data = await response.json();
+      console.log('Response Data: ', data);
       return data.response;
     }
   }

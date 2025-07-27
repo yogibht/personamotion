@@ -9,16 +9,63 @@ const prepEntityMotion = (matterResult, scene, props) => {
 
   const animationController = {
     play: (name, options = {}) => {
-      const state = animationStates[name];
-      if (!state) return;
-      state.action.reset();
-      state.currentSpeed = options.speed || state.baseSpeed;
-      state.action.setEffectiveTimeScale(state.currentSpeed * globalSpeed);
-      state.action.setLoop(options.loop || state.loop);
-      state.action.clampWhenFinished = options.clamp || false;
-      state.action.play();
-      state.isPlaying = true;
+      const mode = options.mode || 'play';
+      const duration = options.fadeDuration ?? 0.4;
+      const modeList = Array.isArray(mode) ? mode : mode.split('|');
+
+      const sequence = options.sequence || [name];
+      const lastName = sequence[sequence.length - 1];
+
+      const playClip = (fromState, toState, fadeDuration, isFinal = false) => {
+        if (fromState && modeList.includes("crossfade")) {
+          fromState.action.fadeOut(fadeDuration);
+        } else if (fromState && fromState.isPlaying) {
+          fromState.action.stop();
+          fromState.isPlaying = false;
+        }
+
+        toState.action.reset();
+        toState.action.fadeIn(fadeDuration).play();
+        toState.currentSpeed = options.speed || toState.baseSpeed;
+        toState.action.setEffectiveTimeScale(toState.currentSpeed * globalSpeed);
+
+        // Apply loop/clamp to the final animation in the sequence
+        if (isFinal) {
+          const loopType = options.loop ?? toState.loop;
+          toState.action.setLoop(loopType);
+          toState.action.clampWhenFinished = loopType === THREE.LoopOnce;
+        }
+
+        toState.isPlaying = true;
+      };
+
+      // Stop everything if toggle is set and last is already playing
+      const finalState = animationStates[lastName];
+      if (!finalState) return;
+      if (modeList.includes("toggle") && finalState.isPlaying) {
+        finalState.action.stop();
+        finalState.isPlaying = false;
+        return;
+      }
+
+      // Play sequence (crossfading between them)
+      let prevState = null;
+      sequence.forEach((animName, idx) => {
+        const state = animationStates[animName];
+        if (!state) return;
+
+        const isFinal = idx === sequence.length - 1;
+        setTimeout(() => {
+          playClip(prevState, state, duration, isFinal);
+        }, idx * duration * 1000); // delay each step in chain
+        prevState = state;
+      });
     },
+    // play("walk", {
+    //   sequence: ["idle", "shrug", "walk"],
+    //   mode: "crossfade",
+    //   loop: THREE.LoopOnce
+    // });
     stop: (name) => {
       const state = animationStates[name];
       if (state) {
@@ -79,7 +126,10 @@ const prepEntityMotion = (matterResult, scene, props) => {
         }
       });
     },
-    getAnimations: () => Object.keys(animationStates),
+    getAnimations: (byName= false) => {
+      const animKeys = Object.keys(animationStates);
+      return animKeys;
+    },
     getCurrentAnimations: () => Object.entries(animationStates)
       .filter(([_, state]) => state.isPlaying)
       .map(([name]) => name),
@@ -109,7 +159,7 @@ const prepEntityMotion = (matterResult, scene, props) => {
         fadeDuration: 0.2
       };
     });
-    console.log('Available animations:', Object.keys(animationStates));
+    console.log('Available animations:', JSON.stringify(Object.keys(animationStates)));
   }
 
   // Play initial animation if specified

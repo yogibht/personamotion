@@ -177,7 +177,7 @@ const setupWindow = async (options) => {
     // Set up prompt box handling
     promptBox.addEventListener('keyup', (event) => {
         if (event.key === 'Enter' && promptBox.value.trim()) {
-            const data = { prompt: promptBox.value, ENV: options.ENV };
+            const data = { mode: 'baked', prompt: promptBox.value, ENV: options.ENV };
             $STATE.set('callAncestors', data);
             promptBox.value = '';
         }

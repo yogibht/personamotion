@@ -23,6 +23,7 @@
         "persona/brains/first.js",
         "persona/brains/second.js",
         "persona/brains/third.js",
+        "persona/expression/speech.js",
         "persona/expression/aesthetics.js",
         "persona/expression/world.js",
         "persona/expression/matter.js",
