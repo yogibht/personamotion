@@ -1,5 +1,4 @@
 const world = async (props) => {
-  console.log(THREE, props);
   const { storageData, brainInstance, canvas, modelURL } = props;
 
   // Initialize renderer
@@ -56,7 +55,6 @@ const world = async (props) => {
   quad.frustumCulled = false;
 
   const updateMaterial = (filterStyle) => {
-    console.log("Filter Style", filterStyle)
     postMaterial = createPostProcessingShader({
       width: canvas.width,
       height: canvas.height,
@@ -139,11 +137,10 @@ const world = async (props) => {
     };
 
     setupRaycastSelection(camera, renderer, raycastPlane, (hit, event) => {
-      console.log('Ray hit plane at:', hit.point);
+      // console.log('Ray hit plane at:', hit.point);
       $STATE.set('toggleUI', true);
     });
 
-    // Animation loop with post-processing
     const clock = new THREE.Clock();
     anim = createAnimationLoop(
       { fps: 90 },
@@ -163,13 +160,11 @@ const world = async (props) => {
           }
         });
 
-        // Render to framebuffer
         renderer.setRenderTarget(renderTarget);
         renderer.clear();
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
 
-        // Post-processing pass
         postMaterial.uniforms.tDiffuse.value = renderTarget.texture;
         postMaterial.uniforms.uTime.value = performance.now() * 0.001;
         renderer.render(postScene, postCamera);
@@ -201,7 +196,6 @@ const world = async (props) => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderTarget.setSize(width, height);
 
-    // Update shader resolution
     postMaterial.fragmentShader = postMaterial.fragmentShader.replace(
       /vec2\((.*?)\)/,
       `vec2(${width.toFixed(1)}, ${height.toFixed(1)})`
@@ -216,26 +210,51 @@ const world = async (props) => {
 
   $STATE.subscribe('containerNeedsUpdate', handleResize);
 
-  const allAvailableVoices = speechSynthesis.getVoices();
-  const selectedLanguage = 'en-US';
-  const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
-  const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea');
-  const voiceOptions = {
-    voice: selectedVoice,
-    rate: 0.8,
-    pitch: 1.05,
-    volume: 0.25,
-    ssml: true,
-    emphasis: 'strong',
-    breakAfter: 250,
-    onEnd:       () => console.log('utterance ended')
-  };
-  const tts = new NaturalTTS(selectedLanguage, voiceOptions);
-  console.table(filteredVoices);
-  console.log(selectedVoice, voiceOptions);
+  const getVoices = () => {
+    return new Promise((resolve) => {
+      const voices = speechSynthesis.getVoices();
 
-  const processAndAnimateLLMResponse = (response) => {
-    // Inject HTML response to UI
+      if (voices.length > 0) {
+        resolve(voices);
+      } else {
+        const onVoicesChanged = () => {
+          const voices = speechSynthesis.getVoices();
+          if (voices.length > 0) {
+            speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+            resolve(voices);
+          }
+        };
+        speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+      }
+    });
+  };
+
+  const initializeTTS = async () => {
+    const allAvailableVoices = await getVoices();
+
+    const selectedLanguage = 'en-US';
+    const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
+    const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea' || 'Google US English');
+
+    const voiceOptions = {
+      voice: selectedVoice,
+      rate: 0.8,
+      pitch: 1.05,
+      volume: 0.25,
+      ssml: true,
+      emphasis: 'strong',
+      breakAfter: 250,
+      onEnd: () => console.log('utterance ended')
+    };
+
+    const tts = new NaturalTTS(selectedLanguage, voiceOptions);
+
+    return { tts, voiceOptions };
+  };
+
+  const processAndAnimateLLMResponse = async (response) => {
+    const { tts, voiceOptions } = await initializeTTS();
+
     const container = document.querySelector('.response-container');
     if (container && response.html) {
       container.innerHTML = response.html;
@@ -243,26 +262,9 @@ const world = async (props) => {
 
     if (response.animationData) {
       const animData = response.animationData;
-      // const allAnimations = animationController.getAnimations();
-      // const animationName = animData.animationName; //allAnimations[UTILITIES.randomInt(1, allAnimations.length)];
-      // animationController.play(animationName);
-      // animationController.play(animationName, { mode: "crossfade", fadeDuration: 0.5 });
-      // animationController.play("walk", {
-      //   sequence: ["idle", "shrug", "walk"],
-      //   mode: "crossfade",
-      //   loop: THREE.LoopOnce
-      // });
-      // animationController.play(animationName, {
-      //   mode: "crossfade",
-      //   loop: THREE.LoopOnce
-      // });
-
       animData.loop = (animData.options && animData.options.loop === 1) ? THREE.LoopOnce : THREE.LoopRepeat;
-      console.log(animData);
       animationController.play(animData.name, animData.options);
-
       tts.speak(response.content, voiceOptions);
-      // tts.stop();
     }
   };
 

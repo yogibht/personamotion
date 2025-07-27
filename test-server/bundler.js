@@ -109,13 +109,15 @@ combineJSFiles({
   searchDirs: [
     path.join(__dirname, '../', 'persona'),
   ],
-  outputPath: path.join(__dirname, '../', 'share', 'bundle.js'),
+  outputPath: path.join(__dirname, '../', 'share', 'personamotionbundle.js'),
   fileOrder: [
     '../persona/toolbelt/utilities.js',
     '../persona/toolbelt/inputmanager.js',
     '../persona/toolbelt/threehelper.js',
-    '../persona/brains/left.js',
-    '../persona/brains/right.js',
+    '../persona/brains/first.js',
+    '../persona/brains/second.js',
+    '../persona/brains/third.js',
+    '../persona/expression/speech.js',
     '../persona/expression/aesthetics.js',
     '../persona/expression/world.js',
     '../persona/expression/matter.js',

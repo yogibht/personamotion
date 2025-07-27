@@ -1,5 +1,5 @@
-// Combined at 2025-07-24T07:20:12.283Z
-// 14 files
+// Combined at 2025-07-27T23:21:47.597Z
+// 16 files
 
 
 // ====== utilities.js ======
@@ -153,27 +153,41 @@ const findFPS = ()=> {
 	});
 };
 
-const remoteRequest = async (userdata, APIKEY, URL, model = 'gemini') => {
+const remoteRequest = async ({
+  userData,
+  APIKEY,
+  URL,
+  model
+}) => {
+
+  if (!model) model = 'GEMINI';
+
   try {
     const headers = {
       'Content-Type': 'application/json',
       'X-goog-api-key': APIKEY
     };
-    if(model === 'deepseek' || model === 'openai'){
+    if(model === 'DEEPSEEK' || model === 'OPENAI'){
       delete headers['X-goog-api-key'];
       headers['Authorization'] = `Bearer ${APIKEY}`;
+    }
+    else if(model === 'CLAUDE'){
+      delete headers['X-goog-api-key'];
+      headers['x-api-key'] = APIKEY;
+      headers['anthropic-version'] = '2023-06-01';
     }
     const response = await fetch(URL, {
       method: 'POST',
       headers,
-      body: JSON.stringify(userdata)
+      body: JSON.stringify(userData)
     });
-    if(model === 'gemini'){
+    if(model === 'GEMINI'){
       const data = await response.text();
       return data;
     }
     else{
       const data = await response.json();
+      console.log('Response Data: ', data);
       return data.response;
     }
   }
@@ -556,7 +570,7 @@ window.createAnimationLoop = createAnimationLoop;
 window.loadGLTFModel = loadGLTFModel;
 
 
-// ====== left.js ======
+// ====== first.js ======
 const RLHFBrain = () => {
   const net = new brain.NeuralNetwork({
     hiddenLayers: [128, 64, 64, 32, 16, 8],
@@ -749,117 +763,184 @@ const initiateLeftBrain = async () => {
 window.initiateLeftBrain = initiateLeftBrain;
 
 
-// ====== right.js ======
+// ====== second.js ======
+//voiced based training goes here in the future
+
+
+// ====== third.js ======
+// right.js – full revised file with dual IK / BAKED animation pipelines
+// -------------------------------------------------------------------
+
+// IMPORTANT: Ensure THREE.js is loaded and accessible globally
+// or passed into modules as needed. This script assumes THREE is available.
+
+// ========= 1. BONE DATA (unchanged) =========================================
 const BONE_DATA = [
   {
-    "name": "mixamorigHips",
-    "position": { "x": 0, "y": -1.41, "z": -89.72 },
-    "parent": "ReeblyArmature"
+    name: "mixamorigHips",
+    position: { x: 0, y: -1.41, z: -89.72 },
+    parent: "ReeblyArmature"
   },
   {
-    "name": "mixamorigSpine",
-    "position": { "x": 0, "y": 10.98, "z": -0.67 },
-    "parent": "mixamorigHips"
+    name: "mixamorigSpine",
+    position: { x: 0, y: 10.98, z: -0.67 },
+    parent: "mixamorigHips"
   },
   {
-    "name": "mixamorigSpine1",
-    "position": { "x": 0, "y": 12.84, "z": 0 },
-    "parent": "mixamorigSpine"
+    name: "mixamorigSpine1",
+    position: { x: 0, y: 12.84, z: 0 },
+    parent: "mixamorigSpine"
   },
   {
-    "name": "mixamorigSpine2",
-    "position": { "x": 0, "y": 14.67, "z": 0 },
-    "parent": "mixamorigSpine1"
+    name: "mixamorigSpine2",
+    position: { x: 0, y: 14.67, z: 0 },
+    parent: "mixamorigSpine1"
   },
   {
-    "name": "mixamorigNeck",
-    "position": { "x": 0, "y": 16.51, "z": 0 },
-    "parent": "mixamorigSpine2"
+    name: "mixamorigNeck",
+    position: { x: 0, y: 16.51, z: 0 },
+    parent: "mixamorigSpine2"
   },
   {
-    "name": "mixamorigHead",
-    "position": { "x": 0, "y": 5.90, "z": 1.56 },
-    "parent": "mixamorigNeck"
+    name: "mixamorigHead",
+    position: { x: 0, y: 5.9, z: 1.56 },
+    parent: "mixamorigNeck"
   },
   {
-    "name": "mixamorigLeftShoulder",
-    "position": { "x": 6.73, "y": 14.51, "z": -0.14 },
-    "parent": "mixamorigSpine2"
+    name: "mixamorigLeftShoulder",
+    position: { x: 6.73, y: 14.51, z: -0.14 },
+    parent: "mixamorigSpine2"
   },
   {
-    "name": "mixamorigLeftArm",
-    "position": { "x": 0, "y": 13.91, "z": 0 },
-    "parent": "mixamorigLeftShoulder"
+    name: "mixamorigLeftArm",
+    position: { x: 0, y: 13.91, z: 0 },
+    parent: "mixamorigLeftShoulder"
   },
   {
-    "name": "mixamorigLeftForeArm",
-    "position": { "x": 0, "y": 32.69, "z": 0 },
-    "parent": "mixamorigLeftArm"
+    name: "mixamorigLeftForeArm",
+    position: { x: 0, y: 32.69, z: 0 },
+    parent: "mixamorigLeftArm"
   },
   {
-    "name": "mixamorigLeftHand",
-    "position": { "x": 0, "y": 27.80, "z": 0 },
-    "parent": "mixamorigLeftForeArm"
+    name: "mixamorigLeftHand",
+    position: { x: 0, y: 27.8, z: 0 },
+    parent: "mixamorigLeftForeArm"
   },
   {
-    "name": "mixamorigRightShoulder",
-    "position": { "x": -6.73, "y": 14.51, "z": -0.10 },
-    "parent": "mixamorigSpine2"
+    name: "mixamorigRightShoulder",
+    position: { x: -6.73, y: 14.51, z: -0.1 },
+    parent: "mixamorigSpine2"
   },
   {
-    "name": "mixamorigRightArm",
-    "position": { "x": 0, "y": 13.91, "z": 0 },
-    "parent": "mixamorigRightShoulder"
+    name: "mixamorigRightArm",
+    position: { x: 0, y: 13.91, z: 0 },
+    parent: "mixamorigRightShoulder"
   },
   {
-    "name": "mixamorigRightForeArm",
-    "position": { "x": 0, "y": 32.69, "z": 0 },
-    "parent": "mixamorigRightArm"
+    name: "mixamorigRightForeArm",
+    position: { x: 0, y: 32.69, z: 0 },
+    parent: "mixamorigRightArm"
   },
   {
-    "name": "mixamorigRightHand",
-    "position": { "x": 0, "y": 27.79, "z": 0 },
-    "parent": "mixamorigRightForeArm"
+    name: "mixamorigRightHand",
+    position: { x: 0, y: 27.79, z: 0 },
+    parent: "mixamorigRightForeArm"
   },
   {
-    "name": "mixamorigLeftUpLeg",
-    "position": { "x": 8.19, "y": -6.10, "z": -1.15 },
-    "parent": "mixamorigHips"
+    name: "mixamorigLeftUpLeg",
+    position: { x: 8.19, y: -6.1, z: -1.15 },
+    parent: "mixamorigHips"
   },
   {
-    "name": "mixamorigLeftLeg",
-    "position": { "x": 0, "y": 41.49, "z": 0 },
-    "parent": "mixamorigLeftUpLeg"
+    name: "mixamorigLeftLeg",
+    position: { x: 0, y: 41.49, z: 0 },
+    parent: "mixamorigLeftUpLeg"
   },
   {
-    "name": "mixamorigLeftFoot",
-    "position": { "x": 0, "y": 32.40, "z": 0 },
-    "parent": "mixamorigLeftLeg"
+    name: "mixamorigLeftFoot",
+    position: { x: 0, y: 32.4, z: 0 },
+    parent: "mixamorigLeftLeg"
   },
   {
-    "name": "mixamorigRightUpLeg",
-    "position": { "x": -8.19, "y": -6.10, "z": -1.05 },
-    "parent": "mixamorigHips"
+    name: "mixamorigRightUpLeg",
+    position: { x: -8.19, y: -6.1, z: -1.05 },
+    parent: "mixamorigHips"
   },
   {
-    "name": "mixamorigRightLeg",
-    "position": { "x": 0, "y": 41.49, "z": 0 },
-    "parent": "mixamorigRightUpLeg"
+    name: "mixamorigRightLeg",
+    position: { x: 0, y: 41.49, z: 0 },
+    parent: "mixamorigRightUpLeg"
   },
   {
-    "name": "mixamorigRightFoot",
-    "position": { "x": 0, "y": 32.41, "z": 0 },
-    "parent": "mixamorigRightLeg"
+    name: "mixamorigRightFoot",
+    position: { x: 0, y: 32.41, z: 0 },
+    parent: "mixamorigRightLeg"
   }
 ];
 
-const ANIMATION_INSTRUCTIONS = {
-  system: `You are an animation director for a 3D character with a Mixamo-rigged skeleton. You must generate precise animation data in JSON format.
+// ========= 2. BAKED ANIMATION LIST (Must be defined before its usage in Prompt Generators) =====================
+const BAKED_ANIMATIONS = [
+  { name: "agreeing", description: "calm nod or simple approval" },
+  { name: "agreeing_loud", description: "exaggerated, vocal agreement or cheerleading" },
+  { name: "bored", description: "disengaged, uninterested, mentally checked out" },
+  { name: "callingyouout", description: "direct challenge or accusatory gesture, playful or critical" },
+  { name: "cheering", description: "excited, celebratory, enthusiastic moment" },
+  { name: "dramaticignore", description: "theatrical disinterest or intentional dismissal" },
+  { name: "falling", description: "overwhelmed, sudden drop, over-the-top defeat" },
+  { name: "flying", description: "imaginative, floaty, dynamic upward movement" },
+  { name: "flying_distracted", description: "whimsical, aimless, light motion" },
+  { name: "happyandidle", description: "cheerful, relaxed, emotionally upbeat" },
+  { name: "idle", description: "default state, no strong emotion, just standing" },
+  { name: "idly_breathing", description: "subtle, calm presence, waiting" },
+  { name: "ignoringyou", description: "passive-aggressive or annoyed detachment" },
+  { name: "lightignore", description: "slightly distracted, casual disinterest" },
+  { name: "likeahobbit", description: "quirky, erratic energy, awkward charm" },
+  { name: "no", description: "decisive head shake, disapproval or rejection" },
+  { name: "sad", description: "withdrawn, sorrowful, emotionally down" },
+  { name: "sarcastic", description: "mocking, ironic, exaggerated or dry humor" },
+  { name: "sendingfacts", description: "informative, confident delivery of information" },
+  { name: "shrug", description: "uncertainty, indifference, lack of commitment" },
+  { name: "sit_anxious", description: "worried or stressed while seated" },
+  { name: "sit_clap", description: "seated but enthusiastic, celebrating" },
+  { name: "sit_down", description: "transitioning into rest or focus" },
+  { name: "sit_type", description: "active, task-oriented seated interaction" },
+  { name: "sit_typeready", description: "alert and prepared, in seated posture" },
+  { name: "sit_wait", description: "waiting state, passive seated stance" },
+  { name: "thisorthat", description: "presenting or comparing two choices" },
+  { name: "TPose", description: "neutral, default pose (no emotion or motion)" },
+  { name: "tunnelsnakesrules", description: "confident, meme-like exaggerated motion" },
+  { name: "walk_left", description: "moving leftward with purpose" },
+  { name: "walk_right", description: "moving rightward with purpose" },
+  { name: "woah", description: "surprised or astonished reaction" },
+  { name: "yes", description: "approving, positive affirmation" }
+];
+
+
+// ========= 3. PROMPT GENERATORS CLASSES ===============================
+
+// Conceptual base class or interface for prompt generators
+class BasePromptGenerator {
+  constructor(animationData = []) {
+    this.animationData = animationData;
+    this.animationDescriptionList = animationData.map(a => `- ${a.name}: ${a.description}`).join("\n");
+  }
+
+  // To be overridden by subclasses
+  generatePrompt(userPrompt, mode) {
+    throw new Error("generatePrompt method must be implemented by subclasses.");
+  }
+}
+
+class IKPromptGenerator extends BasePromptGenerator {
+  generatePrompt(userPrompt) {
+    return {
+      system: `You are an animation director for a 3D character with a rigged skeleton. You must generate precise animation data in JSON format.
 
 BONE STRUCTURE:
 ${JSON.stringify(BONE_DATA, null, 2)}
 
 ANIMATION FORMAT REQUIRED:
+\`\`\`json
 {
   "animationName": "descriptive_name",
   "duration": 2.0,
@@ -889,6 +970,7 @@ ANIMATION FORMAT REQUIRED:
     }
   }
 }
+\`\`\`
 
 RULES:
 - t ranges from 0 to 1 representing animation progress
@@ -899,36 +981,110 @@ RULES:
 - Only include bones that need to move
 - Always provide valid JavaScript expressions as strings
 
-Examples:
-- Wave: "Math.sin(t * Math.PI * 2)"
-- Bounce: "Math.abs(Math.sin(t * Math.PI * 4))"
-- Ease in/out: "0.5 * (1 - Math.cos(t * Math.PI))"
+You MUST respond ONLY with a JSON object following the schema:
+\`\`\`json
+{
+  "content": "<your expressive reply>",
+  "animation": { /* The animation JSON object as described above */ }
+}
+\`\`\`
+Do not include any other text or conversational elements outside the JSON.`,
+      user: `Create an animation for: "${userPrompt}"`,
+    };
+  }
+}
 
-ONLY RESPOND WITH JSON`,
+class BakedPromptGenerator extends BasePromptGenerator {
+  generatePrompt(userPrompt) {
+    return {
+      system: `You are an intent-aware animation selector for a 3D character.
+Your task is to choose one or more animations that best represent the character's emotional state, communicative intent, or behavioral attitude in response to the user's prompt. You can also specify how these animations should be played.
 
-  prompt: (action) => `Create an animation for: "${action}" And your response should be in this schema: { content: $you_response_goes_here, animation: $animationjsondata_as_required_goes_here }`
+Below is the list of available animations with their expressive meanings:
+
+${this.animationDescriptionList}
+
+Use these descriptions to guide your choice based on the tone and purpose of your response — such as conveying excitement, sadness, sarcasm, disagreement, surprise, etc.
+
+You MUST respond ONLY with a JSON object. Do not include any other text or conversational elements.
+
+OUTPUT JSON SCHEMA:
+\`\`\`json
+{
+  "content": "<your expressive reply>",
+  "animationOptions": {
+    "name": "<string, primary animation name>",
+    "sequence": "<optional, array of strings, animation names to play in sequence, e.g., [\"idle\", \"shrug\", \"walk\"]. If provided, 'name' should be the last animation in the sequence.",
+    "mode": "<optional, string, 'play' or 'crossfade'. Default is 'play'. If 'sequence' is used, 'crossfade' is typically implied.>",
+    "fadeDuration": "<optional, number, duration in seconds for crossfades. Default is 0.4.>",
+    "loop": "<optional, number, 1 or 0. Default is 0. Use 1 for single-play animations.>"
+  }
+}
+\`\`\`
+Ensure "name" and any "sequence" animation names are from the provided list. If "sequence" is used, "name" should be the last animation in that sequence.`,
+      user: `Given the user input: "${userPrompt}"\nSelect one or more appropriate animations from the list above (based on description) and generate a short expressive reply. Output only in the specified JSON format.`,
+    };
+  }
+}
+
+// Map LLM API names to their respective prompt generators
+const LLM_PROMPT_GENERATORS = {
+  GEMINI: {
+    ik: new IKPromptGenerator(BAKED_ANIMATIONS),
+    baked: new BakedPromptGenerator(BAKED_ANIMATIONS), // Use BAKED_ANIMATIONS here
+  },
+  OPENAI: {
+    ik: new IKPromptGenerator(BAKED_ANIMATIONS),
+    baked: new BakedPromptGenerator(BAKED_ANIMATIONS),
+  },
+  DEEPSEEK: {
+    ik: new IKPromptGenerator(BAKED_ANIMATIONS),
+    baked: new BakedPromptGenerator(BAKED_ANIMATIONS),
+  },
+  CLAUDE: {
+    ik: new IKPromptGenerator(BAKED_ANIMATIONS),
+    baked: new BakedPromptGenerator(BAKED_ANIMATIONS),
+  },
+  // Add more LLM APIs here
 };
 
+// Main function to get prompts for different LLMs
+const getLLMPrompt = (llmApiName, userPrompt, mode = "baked") => {
+  const generatorSet = LLM_PROMPT_GENERATORS[llmApiName.toUpperCase()];
+  if (!generatorSet) {
+    throw new Error(`Unsupported LLM API: ${llmApiName}`);
+  }
+
+  const generator = generatorSet[mode.toLowerCase()];
+  if (!generator) {
+    throw new Error(`Unsupported mode '${mode}' for LLM API: ${llmApiName}`);
+  }
+
+  return generator.generatePrompt(userPrompt);
+};
+
+
+// ========= 4. HELPERS =======================================================
 let debug_prompt_count = 0;
 
 const parseFunctionStrings = (obj) => {
-  if (!obj || typeof obj !== 'object') return;
+  if (!obj || typeof obj !== "object") return;
 
   const parseValue = (val) => {
-    if (typeof val === 'string' && val.includes('=>')) {
+    if (typeof val === "string" && val.includes("=>")) {
       try {
-        const body = val.split('=>')[1].trim();
-        return new Function('t', 'return ' + body);
+        const body = val.split("=>")[1].trim();
+        return new Function("t", "return " + body);
       } catch (e) {
-        console.warn('Invalid function string:', val);
-        return () => 0;
+        console.warn("Invalid function string:", val);
+        return () => 0; // Return a no-op function on error
       }
     }
     return val;
   };
 
   for (const key in obj) {
-    if (typeof obj[key] === 'object') {
+    if (typeof obj[key] === "object" && obj[key] !== null) {
       parseFunctionStrings(obj[key]);
     } else {
       obj[key] = parseValue(obj[key]);
@@ -936,87 +1092,184 @@ const parseFunctionStrings = (obj) => {
   }
 };
 
+// ========= 5. MAIN LLM CALLER (updated) =====================================
 const callAncestors = async (data) => {
   debug_prompt_count++;
 
-  const promptText = `System Prompt: ${ANIMATION_INSTRUCTIONS.system}\nUser Prompt: \n${ANIMATION_INSTRUCTIONS.prompt(data.prompt)}`;
-
-  const ancestorData = {
-    contents: [{
-      parts: [{ text: promptText }]
-    }]
-  };
+  const selectedThirdBrain = 'GEMINI'; // Or pass this in `data` to make it configurable
+  const mode = data.mode || "ik"; // Default to 'ik' if not specified
 
   try {
-    const homecall = await UTILITIES.remoteRequest(ancestorData, data.ENV.API.GEMINI.key, data.ENV.API.GEMINI.url);
-    const processedcall = JSON.parse(homecall);
-    const response_text = processedcall.candidates[0].content.parts[0].text;
+    const promptData = getLLMPrompt(selectedThirdBrain, data.prompt, mode);
+
+    let llmPayload;
+    switch (selectedThirdBrain) {
+      case 'GEMINI':
+        llmPayload = {
+          contents: [
+            { role: "user", parts: [{ text: promptData.system + "\n\n" + promptData.user }] }
+          ]
+        };
+        break;
+      case 'OPENAI':
+        llmPayload = {
+          model: "gpt-4-turbo",
+          messages: [
+            { role: "system", content: promptData.system },
+            { role: "user", content: promptData.user }
+          ],
+          response_format: { type: "json_object" }
+        };
+        break;
+      case 'DEEPSEEK':
+        llmPayload = {
+          model: 'deepseek-chat',
+          messages: [
+            { role: "system", content: promptData.system },
+            { role: "user", content: promptData.user }
+          ],
+          "stream": false
+        };
+        break;
+      case 'CLAUDE':
+        llmPayload = {
+          model: "claude-3-sonnet-20240229",
+          max_tokens: 1024,
+          messages: [
+            { role: "user", content: `Here are the instructions: ${promptData.system}\n\n${promptData.user}` }
+          ],
+        };
+        break;
+      default:
+        throw new Error(`Payload generation not implemented for LLM: ${selectedThirdBrain}`);
+    }
+
+    const homecall = await UTILITIES.remoteRequest({
+      userData: llmPayload,
+      APIKEY: data.ENV.API[selectedThirdBrain].key,
+      URL: data.ENV.API[selectedThirdBrain].url,
+      model: selectedThirdBrain
+    });
+
+    let processedcall = JSON.parse(homecall);
+
+    let response_text = '';
+    if (selectedThirdBrain === 'GEMINI') {
+      response_text = processedcall?.candidates?.[0]?.content?.parts?.[0]?.text;
+    } else if (selectedThirdBrain === 'OPENAI' || selectedThirdBrain === 'DEEPSEEK') {
+      response_text = processedcall?.choices?.[0]?.message?.content;
+    } else if (selectedThirdBrain === 'CLAUDE') {
+      response_text = processedcall?.content?.[0]?.text;
+    }
+
+    if (!response_text) {
+      throw new Error("LLM response text is empty or ill-formatted.");
+    }
 
     let animationData = null;
     let AIResponse = null;
     let cleanedText = response_text.trim();
 
-    // Step 1: Remove markdown block fences
-    if (cleanedText.startsWith('```json')) cleanedText = cleanedText.slice(7);
-    if (cleanedText.endsWith('```')) cleanedText = cleanedText.slice(0, -3);
+    cleanedText = cleanedText.replace(/^```(?:json)?\s*|```\s*$/g, '').trim();
 
-    // Step 2: Remove newlines inside strings like "(t) => ..."
-    cleanedText = cleanedText.replace(/"(.*?)=>[\s\S]*?"/g, (match) => {
-      return match.replace(/\n/g, ' ').replace(/\r/g, ' ');
+    cleanedText = cleanedText.replace(/"(.*?)=>([\s\S]*?)"/g, (match, p1, p2) => {
+      return `"${p1}=>${p2.replace(/[\n\r]/g, " ")}"`;
     });
 
-    // Step 3: Remove trailing commas before closing brackets
-    cleanedText = cleanedText.replace(/,\s*([}\]])/g, '$1');
+    cleanedText = cleanedText.replace(/,\s*([}\]])/g, "$1");
 
     try {
-      const maybeJSON = JSON.parse(cleanedText);
-      console.log(maybeJSON);
-      if (maybeJSON && maybeJSON.animation) {
-        parseFunctionStrings(maybeJSON.animation.chains);
-        parseFunctionStrings(maybeJSON.animation.motion);
-        animationData = maybeJSON.animation;
-      }
-      if (maybeJSON && maybeJSON.content) {
-        AIResponse = maybeJSON.content
+      const parsedLLMResponse = JSON.parse(cleanedText);
+
+      if (mode === "baked") {
+        // BAKED MODE: Expect { content: "...", animationOptions: { ... } }
+        // Extract content and animation options
+        AIResponse = parsedLLMResponse.content;
+        animationData = {
+          mode: "baked",
+          // Pass all options directly to the animationController.play method
+          // The 'name' property is now part of animationOptions
+          ...parsedLLMResponse.animationOptions
+        };
+        // Ensure that if sequence is provided, the main 'name' is the last in the sequence
+        if (animationData.sequence && animationData.sequence.length > 0) {
+            animationData.name = animationData.sequence[animationData.sequence.length - 1];
+        } else if (!animationData.name) {
+            // Fallback if no sequence and no name is provided (shouldn't happen with good LLM output)
+            console.warn("Baked animation response missing 'name' or 'sequence' in animationOptions.");
+            animationData.name = "idle"; // Default to idle
+        }
+
+      } else { // IK MODE
+        // IK MODE: Expect { content: "...", animation: { ... } }
+        if (parsedLLMResponse?.animation) {
+          parseFunctionStrings(parsedLLMResponse.animation.chains);
+          parseFunctionStrings(parsedLLMResponse.animation.motion);
+          animationData = parsedLLMResponse.animation;
+        }
+        if (parsedLLMResponse?.content) {
+          AIResponse = parsedLLMResponse.content;
+        }
       }
     } catch (e) {
-      console.warn('Failed to parse JSON animation block:', e);
-      console.warn('Problematic cleaned JSON:\n', cleanedText);
+      console.warn("Failed to parse JSON animation block or LLM response:", e);
+      console.warn("Problematic cleaned JSON:\n", cleanedText);
+      AIResponse = "Sorry, I couldn't generate a valid animation or response right now.";
     }
-
 
     const responseContent = `
       <div style="background-color: #2c3e50;
-                  color: #ecf0f1;
-                  font-family: 'Arial', sans-serif;
-                  padding: 2em;
-                  border-radius: 12px;
-                  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                  text-align: center;
-                  max-width: 400px;
-                  margin: 2em auto;
-                  border: 2px solid #3498db;
-                  transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;">
+                   color: #ecf0f1;
+                   font-family: 'Arial', sans-serif;
+                   padding: 2em;
+                   border-radius: 12px;
+                   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                   text-align: center;
+                   max-width: 400px;
+                   margin: 2em auto;
+                   border: 2px solid #3498db;
+                   transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;">
         <h2 style="margin-top: 0; color: #3498db; text-transform: uppercase; letter-spacing: 2px;">
         Prompt: ${data.prompt}
         </h2>
         <p style="font-size: 1.1em; line-height: 1.6; margin-bottom: 0;">
-        ${AIResponse}
+        ${AIResponse || "Animation generated."}
         </p>
       </div>
     `;
 
-    $STATE.set('promptResponse', {
-      data: response_text,
+    $STATE.set("promptResponse", {
+      data: response_text, // Keep raw LLM text for debug if needed
       html: responseContent,
-      animationData
+      animationData,
+      content: AIResponse
     });
-
   } catch (err) {
-    console.error(err);
+    console.error("Error in callAncestors:", err);
+    $STATE.set("promptResponse", {
+      data: null,
+      html: `
+        <div style="background-color: #e74c3c;
+                     color: #ecf0f1;
+                     font-family: 'Arial', sans-serif;
+                     padding: 2em;
+                     border-radius: 12px;
+                     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                     text-align: center;
+                     max-width: 400px;
+                     margin: 2em auto;">
+          <h2 style="margin-top: 0; color: #fff;">Error!</h2>
+          <p style="font-size: 1.1em;">Failed to get a response from the AI. Please try again.</p>
+          <p style="font-size: 0.9em; opacity: 0.8;">Details: ${err.message}</p>
+        </div>
+      `,
+      animationData: null,
+      content: "Failed to get a response from the AI."
+    });
   }
 };
 
+// ========= 6. INITIALISATION ===============================================
 const initiateRightBrain = async () => {
   const globalData = {
     containerNeedsUpdate: true,
@@ -1029,10 +1282,130 @@ const initiateRightBrain = async () => {
     $STATE.set(key, globalData[key]);
   }
 
-  $STATE.subscribe('callAncestors', callAncestors);
+  $STATE.subscribe("callAncestors", callAncestors);
 };
 
 window.initiateRightBrain = initiateRightBrain;
+
+
+// ====== speech.js ======
+// speech.js — class-level defaults + full inline docs
+// ------------------------------------------------------------
+class NaturalTTS {
+  #voices = [];
+  #defaultVoice = null;
+
+  constructor(lang = 'en-US', defaults = {}) {
+    this.lang = lang;
+
+    /* ---------------------------------------------
+       Instance-level default settings
+       These become the fallback for every speak() call.
+       You can still override them per call via opts.
+    --------------------------------------------- */
+    /** @type {SpeechSynthesisVoice|null} Preferred voice. */
+    this.voice       = defaults.voice  ?? null;
+
+    /** @type {number} 0.1 – 10  (1 = normal speed) */
+    this.rate        = defaults.rate   ?? 1;
+
+    /** @type {number} 0 – 2    (1 = normal pitch) */
+    this.pitch       = defaults.pitch  ?? 1;
+
+    /** @type {number} 0 – 1    (1 = full volume) */
+    this.volume      = defaults.volume ?? 1;
+
+    /** @type {boolean} Wrap text in SSML (Edge/Win only) */
+    this.ssml        = defaults.ssml   ?? false;
+
+    /** @type {string} Emphasis level: '', 'strong', 'moderate', 'reduced' (SSML only) */
+    this.emphasis    = defaults.emphasis ?? '';
+
+    /** @type {number} Milliseconds to append after the sentence (SSML only) */
+    this.breakAfter  = defaults.breakAfter ?? 0;
+
+    this.refreshVoices();
+    speechSynthesis.addEventListener('voiceschanged', () => this.refreshVoices());
+  }
+
+  refreshVoices() {
+    this.#voices = speechSynthesis.getVoices();
+    this.#defaultVoice =
+      this.#voices.find(v => v.name === 'Google en-US-Neural2-D') ||
+      this.#voices.find(v => v.name === 'Microsoft David') ||
+      this.#voices.find(v => v.lang.startsWith('en') && v.localService) ||
+      this.#voices[0];
+  }
+
+  list() {
+    return this.#voices.map(v => ({ name: v.name, lang: v.lang }));
+  }
+
+  /**
+   * Batch-update default settings.
+   * @param {Object} obj - subset of {voice, rate, pitch, volume, ssml, emphasis, breakAfter}
+   */
+  setDefaults(obj) {
+    Object.assign(this, obj);
+  }
+
+  /**
+   * Speak text, merging instance defaults with per-call overrides.
+   * @param {string} text - text to speak.
+   * @param {Object} [opts] - per-call overrides (same keys as instance defaults).
+   * @returns {SpeechSynthesisUtterance} live utterance (you can .pause(), .resume(), etc.).
+   */
+  speak(text, opts = {}) {
+    // Merge: per-call opts > instance defaults
+    const {
+      voice       = this.voice ?? this.#defaultVoice,
+      rate        = this.rate,
+      pitch       = this.pitch,
+      volume      = this.volume,
+      ssml        = this.ssml,
+      emphasis    = this.emphasis,
+      breakAfter  = this.breakAfter,
+      onEnd       = null
+    } = { ...this, ...opts };
+
+    speechSynthesis.cancel(); // auto-stop previous
+
+    let finalText = String(text);
+    const canSSML = ssml && voice?.name?.includes('Microsoft');
+
+    if (canSSML) {
+      finalText = `<speak><prosody rate="${Math.max(0.1, Math.min(10, rate)) * 100}%" ` +
+                  `pitch="${Math.max(0, Math.min(2, pitch))}">` +
+                  (emphasis ? `<emphasis level="${emphasis}">${text}</emphasis>` : text) +
+                  (breakAfter ? `<break time="${Math.max(0, breakAfter)}ms"/>` : '') +
+                  '</prosody></speak>';
+    }
+
+    const utter = new SpeechSynthesisUtterance(finalText);
+
+    // Only assign valid SpeechSynthesisVoice objects
+    if (voice && voice instanceof SpeechSynthesisVoice) utter.voice = voice;
+    utter.lang   = voice?.lang || this.lang;
+    utter.rate   = canSSML ? 1 : Math.max(0.1, Math.min(10, rate));
+    utter.pitch  = canSSML ? 1 : Math.max(0, Math.min(2, pitch));
+    utter.volume = Math.max(0, Math.min(1, volume));
+
+    if (onEnd && typeof onEnd === 'function') utter.addEventListener('end', onEnd);
+    speechSynthesis.speak(utter);
+    return utter;
+  }
+
+  /** Stop/cancel any utterance immediately */
+  stop()   { speechSynthesis.cancel(); }
+
+  /** Pause the current utterance (if any) */
+  pause()  { speechSynthesis.pause(); }
+
+  /** Resume after pause */
+  resume() { speechSynthesis.resume(); }
+}
+
+window.NaturalTTS = NaturalTTS;
 
 
 // ====== aesthetics.js ======
@@ -2100,14 +2473,14 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   group.add(sphereMesh);
 
   const nodeMap = new Map();
-  function spherePos(i, total, layer, maxLayer) {
+  const spherePos = (i, total, layer, maxLayer) => {
     const y = 1.0 - 2.0 * (i / total);
     const radius = Math.sqrt(1.0 - y * y);
     const theta = Math.PI * (3.0 - Math.sqrt(5.0)) * i + layer * 0.2;
     return new THREE.Vector3(radius * Math.cos(theta), y, radius * Math.sin(theta));
   }
 
-  function updateGraph(graph) {
+  const updateGraph = (graph) => {
     const nodes = graph.nodes || [], links = graph.links || [];
     const nCount = Math.min(nodes.length, MAX_NODES), lCount = Math.min(links.length, MAX_LINKS);
     const id2idx = new Map(nodes.map((n, i) => [n.id, i]));
@@ -2133,7 +2506,7 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     sphereMat.uniforms.linkCnt.value = lIdx;
   }
 
-  function animate(cam, t) {
+  const animate = (cam, t) => {
     sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
     sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
     // sphereMat.uniforms.uTime.value = t; // IMPORTANT: Update the time uniform each frame for animation
@@ -2147,7 +2520,338 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     updateGraph,
     animate,
     setScale: s => sphereMesh.scale.setScalar(s),
-    toggleAll: v => { sphereMesh.visible = v; }
+    toggle: v => { sphereMesh.visible = v; }
+  };
+};
+
+const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
+  const MAX_PARTICLES = 8192;
+
+  const group = new THREE.Group();
+  group.scale.set(0.5, 0.5, 0.5);
+  group.position.y = 2.5;
+  scene.add(group);
+
+  // Galaxy-style uniforms adapted for brain networks
+  const uniforms = {
+    uSize: { value: props.particleSize || 1.5 },
+    uTime: { value: 0.0 },
+    uMap: { value: null },
+    uBrightness: { value: props.brightness || 2.0 }
+  };
+
+  // Create circular particle texture
+  const createCircleTexture = () => {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+    gradient.addColorStop(0.7, 'rgba(255,255,255,0.3)');
+    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+  };
+
+  uniforms.uMap.value = createCircleTexture();
+
+  // Galaxy vertex shader with neural network influence
+  const vertexShader = `
+    uniform mat4 projectionMatrix;
+    uniform mat4 modelMatrix;
+    uniform mat4 viewMatrix;
+
+    attribute vec3 position;
+    attribute vec3 color;
+    attribute float aScale;
+    attribute float aDistance;
+    attribute float aNeuralInfluence;
+    attribute float aArmIndex;
+
+    uniform float uTime;
+    uniform float uSize;
+
+    varying vec3 vColor;
+    varying float vDistance;
+    varying float vNeuralInfluence;
+
+    void main() {
+        vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+        // Static galaxy structure - no time-based movement of vertices
+        // Particles stay in their fixed spiral positions
+
+        vec4 viewPosition = viewMatrix * modelPosition;
+        vec4 projectedPosition = projectionMatrix * viewPosition;
+        gl_Position = projectedPosition;
+
+        // Size varies with neural influence and distance (static positioning)
+        float neuralBrightening = (1.0 + aNeuralInfluence * 2.0);
+        float distanceAttenuation = (1.0 - aDistance * 0.3);
+        gl_PointSize = uSize * aScale * neuralBrightening * distanceAttenuation;
+        gl_PointSize *= (1.0 / -viewPosition.z);
+
+        vColor = color;
+        vDistance = aDistance;
+        vNeuralInfluence = aNeuralInfluence;
+    }
+  `;
+
+  // Galaxy fragment shader with neural-inspired effects
+  const fragmentShader = `
+    precision highp float;
+
+    uniform sampler2D uMap;
+    uniform float uBrightness;
+
+    varying vec3 vColor;
+    varying float vDistance;
+    varying float vNeuralInfluence;
+
+    // Neural firing pattern noise (only for visual effects, not positioning)
+    float hash21(in vec2 n) {
+        return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
+    }
+
+    float neuralFiring(vec2 p, float influence) {
+        vec2 i = floor(p * 8.0);
+        vec2 f = fract(p * 8.0);
+
+        // Static noise based on position and neural influence only
+        float a = hash21(i + influence * 10.0);
+        float b = hash21(i + vec2(1.0, 0.0) + influence * 10.0);
+        float c = hash21(i + vec2(0.0, 1.0) + influence * 10.0);
+        float d = hash21(i + vec2(1.0, 1.0) + influence * 10.0);
+
+        vec2 u = f * f * (3.0 - 2.0 * f);
+
+        float noise = mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+
+        // Static firing pattern based on noise threshold
+        return step(0.5, noise) * (noise * 0.8 + 0.2);
+    }
+
+    void main() {
+        vec2 uv = vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y);
+
+        vec4 pointTexture = texture2D(uMap, uv);
+        if (pointTexture.a < 0.1) discard;
+
+        // Static neural firing effect (no time dependency)
+        float firing = neuralFiring(gl_PointCoord.xy, vNeuralInfluence);
+        float neuralPulse = vNeuralInfluence * firing * 0.8 + 0.2;
+
+        // Galaxy-style color variation with neural influence
+        vec3 finalColor = vColor * pointTexture.rgb;
+
+        // Brighter stars have neural activity influence
+        float neuralGlow = 1.0 + vNeuralInfluence * neuralPulse * 2.0;
+
+        // Distance-based dimming (like real galaxy)
+        float distanceDim = 1.0 - vDistance * 0.4;
+
+        gl_FragColor = vec4(finalColor * neuralGlow * distanceDim, pointTexture.a) * uBrightness;
+    }
+  `;
+
+  // Create galaxy geometry
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array(MAX_PARTICLES * 3);
+  const colors = new Float32Array(MAX_PARTICLES * 3);
+  const scales = new Float32Array(MAX_PARTICLES);
+  const distances = new Float32Array(MAX_PARTICLES);
+  const neuralInfluences = new Float32Array(MAX_PARTICLES);
+  const armIndices = new Float32Array(MAX_PARTICLES);
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
+  geometry.setAttribute('aDistance', new THREE.BufferAttribute(distances, 1));
+  geometry.setAttribute('aNeuralInfluence', new THREE.BufferAttribute(neuralInfluences, 1));
+  geometry.setAttribute('aArmIndex', new THREE.BufferAttribute(armIndices, 1));
+
+  const material = new THREE.RawShaderMaterial({
+    uniforms: uniforms,
+    vertexShader: vertexShader,
+    fragmentShader: fragmentShader,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  const galaxyPoints = new THREE.Points(geometry, material);
+  group.add(galaxyPoints);
+
+  let particleCount = 0;
+
+  // Generate galaxy structure influenced by brain network
+  const generateGalaxyFromBrain = (graph) => {
+    const nodes = graph.nodes || [];
+    const links = graph.links || [];
+
+    // Build connection map
+    const connectionMap = new Map();
+    nodes.forEach(node => {
+      connectionMap.set(node.id, {
+        connections: 0,
+        totalWeight: 0,
+        bias: typeof node.bias === 'number' ? node.bias : 0
+      });
+    });
+
+    links.forEach(link => {
+      const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+      const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+      const weight = Math.abs(link.bias || 0);
+
+      [sourceId, targetId].forEach(id => {
+        if (connectionMap.has(id)) {
+          const info = connectionMap.get(id);
+          info.connections++;
+          info.totalWeight += weight;
+        }
+      });
+    });
+
+    particleCount = 0;
+    const connectionValues = Array.from(connectionMap.values());
+    const maxConnections = Math.max(1, ...connectionValues.map(c => c.connections));
+    const majorHubs = nodes
+      .filter(n => connectionMap.get(n.id).connections > 0)
+      .sort((a, b) => connectionMap.get(b.id).connections - connectionMap.get(a.id).connections)
+      .slice(0, typeof props.numArms === 'number' ? props.numArms : Math.min(6, Math.max(2, Math.floor(nodes.length / 10))));
+
+    const armCount = majorHubs.length;
+    const particlesPerArm = Math.floor(MAX_PARTICLES * 0.4 / armCount);
+    const randomParticles = MAX_PARTICLES - (particlesPerArm * armCount);
+    let maxDistance = 0;
+
+    // Helper: Convert normalized bias to HSL color
+    const colorFromBias = (bias, dim = false) => {
+      const clamped = Math.max(-1, Math.min(1, bias));
+      const t = (clamped + 1) / 2;
+
+      let hue = 0.67 - t * 0.67; // blue → red
+      let sat = dim ? 0.6 : 0.9;
+      let light = dim ? 0.3 + t * 0.2 : 0.5 + t * 0.3;
+
+      return new THREE.Color().setHSL(hue, sat, light);
+    };
+
+    // Generate spiral arms from major hubs
+    majorHubs.forEach((hub, armIndex) => {
+      const info = connectionMap.get(hub.id);
+      const sizeFactor = info.connections / maxConnections;
+      const spiralTightness = (props.spiralTightness || 4.0) * (1 + sizeFactor);
+
+      for (let i = 0; i < particlesPerArm && particleCount < MAX_PARTICLES; i++) {
+        const norm = i / particlesPerArm;
+        const angle = (armIndex / armCount) * Math.PI * 2 + norm * spiralTightness;
+
+        const radius = 0.2 + norm * (1.2 + sizeFactor * 0.8);
+        const radiusVar = (Math.random() - 0.5) * 0.1;
+        const thetaVar = (Math.random() - 0.5) * 0.05;
+
+        const finalRadius = radius + radiusVar;
+        const finalTheta = angle + thetaVar;
+
+        const x = Math.cos(finalTheta) * finalRadius;
+        const y = (Math.random() - 0.5) * 0.05 * (1 - norm * 0.7);
+        const z = Math.sin(finalTheta) * finalRadius;
+
+        vertices.set([x, y, z], particleCount * 3);
+        maxDistance = Math.max(maxDistance, finalRadius);
+
+        const color = colorFromBias(info.bias);
+        colors.set([color.r, color.g, color.b], particleCount * 3);
+
+        scales[particleCount] = 0.5 + sizeFactor * 1.5;
+        distances[particleCount] = norm;
+        neuralInfluences[particleCount] = sizeFactor * (0.5 + Math.random() * 0.5);
+        armIndices[particleCount] = armIndex;
+
+        particleCount++;
+      }
+    });
+
+    // Fill remaining with background particles
+    const backgroundNodes = nodes.filter(n => !majorHubs.includes(n));
+
+    for (let i = 0; i < randomParticles && particleCount < MAX_PARTICLES; i++) {
+      const node = backgroundNodes[i % backgroundNodes.length];
+      const info = connectionMap.get(node.id) || { connections: 0, bias: 0 };
+
+      const radius = Math.pow(Math.random(), 0.7) * 1.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = (Math.random() - 0.5) * Math.PI * 0.1;
+
+      const x = Math.cos(theta) * Math.cos(phi) * radius;
+      const y = Math.sin(phi) * radius * 0.2;
+      const z = Math.sin(theta) * Math.cos(phi) * radius;
+
+      vertices.set([x, y, z], particleCount * 3);
+      maxDistance = Math.max(maxDistance, radius);
+
+      const color = colorFromBias(info.bias, true);
+      colors.set([color.r, color.g, color.b], particleCount * 3);
+
+      const sizeFactor = info.connections / maxConnections;
+      scales[particleCount] = 0.2 + sizeFactor * 1.0;
+      distances[particleCount] = radius / maxDistance;
+      neuralInfluences[particleCount] = sizeFactor * (0.2 + Math.random() * 0.3);
+      armIndices[particleCount] = -1;
+
+      particleCount++;
+    }
+
+    // Normalize distances
+    for (let i = 0; i < particleCount; i++) {
+      const x = vertices[i * 3], z = vertices[i * 3 + 2];
+      const r = Math.sqrt(x * x + z * z);
+      distances[i] = r / maxDistance;
+    }
+
+    geometry.attributes.position.needsUpdate = true;
+    geometry.attributes.color.needsUpdate = true;
+    geometry.attributes.aScale.needsUpdate = true;
+    geometry.attributes.aDistance.needsUpdate = true;
+    geometry.attributes.aNeuralInfluence.needsUpdate = true;
+    geometry.attributes.aArmIndex.needsUpdate = true;
+
+    geometry.setDrawRange(0, particleCount);
+  }
+
+  const updateGraph = (graph) => {
+    generateGalaxyFromBrain(graph);
+  }
+
+  const  animate = (camera, time) => {
+    // Only rotate the entire galaxy group (not individual particles)
+    group.rotation.y += 0.002;
+
+    // Add slight wobble for more organic feel
+    group.rotation.x = UTILITIES.toRadian(35) + Math.sin(time * 0.001) * 0.05;
+    group.rotation.z = Math.cos(time * 0.0015) * 0.03;
+  }
+
+  // Initialize
+  updateGraph(initialGraph || { nodes: [], links: [] });
+
+  return {
+    updateGraph,
+    animate,
+    setScale: (s) => group.scale.setScalar(s),
+    toggle: (visible) => { group.visible = visible; },
+    setBrightness: (brightness) => { uniforms.uBrightness.value = brightness; },
+    setParticleSize: (size) => { uniforms.uSize.value = size; }
   };
 };
 
@@ -2155,6 +2859,7 @@ window.createShaderMaterial = createShaderMaterial;
 window.createDebugMaterial = createDebugMaterial;
 window.createPostProcessingShader = createPostProcessingShader;
 window.createLivingBrainViz = createLivingBrainViz;
+window.createGalaxyBrainViz = createGalaxyBrainViz;
 
 const DUMMY_DATA = {
   haiku: `
@@ -2237,7 +2942,7 @@ window.DUMMY_DATA = DUMMY_DATA;
 
 // ====== world.js ======
 const world = async (props) => {
-  const { brainInstance, canvas, modelURL } = props;
+  const { storageData, brainInstance, canvas, modelURL } = props;
 
   // Initialize renderer
   const renderer = new THREE.WebGLRenderer({
@@ -2283,7 +2988,6 @@ const world = async (props) => {
   const postScene = new THREE.Scene();
   const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-
   let postMaterial = createPostProcessingShader({
     width: canvas.width,
     height: canvas.height,
@@ -2291,9 +2995,9 @@ const world = async (props) => {
     colorMult: new THREE.Color(1.0, 1.0, 1.0)
   });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
+  quad.frustumCulled = false;
 
   const updateMaterial = (filterStyle) => {
-    console.log("Filter Style", filterStyle)
     postMaterial = createPostProcessingShader({
       width: canvas.width,
       height: canvas.height,
@@ -2313,7 +3017,14 @@ const world = async (props) => {
       width: canvas.width,
       height: canvas.height,
     });
-    networkViz.toggleAll(networkVizToggleState);
+    // networkViz = createGalaxyBrainViz(scene, brainData, {
+    //   particleSize: 2.0,
+    //   brightness: 2.0,
+    //   rotationSpeed: 0.1,
+    //   spiralTightness: 2.0,
+    //   numArms: 5
+    // });
+    networkViz.toggle(networkVizToggleState);
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -2324,37 +3035,33 @@ const world = async (props) => {
       debug: false
     });
 
-    const { model, raycastPlane } = entity;
+    const { model, raycastPlane, boneData } = entity;
+
+    // const ikSolver = new THREE.CCDIKSolver(model, boneData);
+    // const ikHelper = new THREE.CCDIKHelper(model, boneData);
+    // scene.add(ikHelper);
+
     animationController = entity.animationController;
     animationController.setFPS(60);
-    animationController.play('happyandidle');
+    animationController.play('idle', {loop: true});
 
-    // animationController.createIKAnimation('pointAndMove', {
-    //   duration: 3.0,
-    //   loop: true,
-    //   chains: {
-    //     'mixamorigLeftHand': {
-    //       x: (t) => Math.sin(t * Math.PI * 2),
-    //       y: (t) => 1.5 + 0.3 * Math.sin(t * Math.PI * 4),
-    //       z: 1.0
-    //     }
-    //   },
-    //   motion: {
-    //     position: {
-    //       x: (t) => Math.sin(t * Math.PI * 2) * 2,
-    //       y: (t) => 0.2 * Math.sin(t * Math.PI * 8),
-    //       z: (t) => Math.cos(t * Math.PI * 2) * 2
-    //     },
-    //     rotation: {
-    //       y: (t) => t * Math.PI * 2
-    //     },
-    //     scale: {
-    //       x: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
-    //       y: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4),
-    //       z: (t) => 1 + 0.1 * Math.sin(t * Math.PI * 4)
-    //     }
-    //   }
-    // });
+    // animationController.createIKAnimation('wave', {
+    //   mixamorigLeftHand: t => ({
+    //     x: Math.sin(t * Math.PI * 2) * 25,
+    //     y: Math.sin(t * Math.PI * 4) * 15,
+    //     z: 0
+    //   })
+    // }, 1.5);
+    // entity.animationController.play('wave');
+
+    // entity.animationController.createIKAnimation('kick', {
+    //   mixamorigRightFoot: t => ({
+    //     x: 0,
+    //     y: Math.max(0, Math.sin(t * Math.PI) * 40),
+    //     z: 0
+    //   })
+    // }, 1);
+    // entity.animationController.play('kick');
 
     // window.addEventListener('keyup', (e) => {
     //   if (e.key === 'w') {
@@ -2373,11 +3080,10 @@ const world = async (props) => {
     };
 
     setupRaycastSelection(camera, renderer, raycastPlane, (hit, event) => {
-      console.log('Ray hit plane at:', hit.point);
+      // console.log('Ray hit plane at:', hit.point);
       $STATE.set('toggleUI', true);
     });
 
-    // Animation loop with post-processing
     const clock = new THREE.Clock();
     anim = createAnimationLoop(
       { fps: 90 },
@@ -2387,8 +3093,8 @@ const world = async (props) => {
         if (networkVizToggleState) {
           const brainData = brainInstance.generateGraphData();
           // console.log(networkViz.getPerformanceInfo());
-          networkViz.animate(camera, performance.now());
           networkViz.updateGraph(brainData);
+          networkViz.animate(camera, performance.now());
         }
 
         model.traverse((object) => {
@@ -2397,13 +3103,11 @@ const world = async (props) => {
           }
         });
 
-        // Render to framebuffer
         renderer.setRenderTarget(renderTarget);
         renderer.clear();
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
 
-        // Post-processing pass
         postMaterial.uniforms.tDiffuse.value = renderTarget.texture;
         postMaterial.uniforms.uTime.value = performance.now() * 0.001;
         renderer.render(postScene, postCamera);
@@ -2435,7 +3139,6 @@ const world = async (props) => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderTarget.setSize(width, height);
 
-    // Update shader resolution
     postMaterial.fragmentShader = postMaterial.fragmentShader.replace(
       /vec2\((.*?)\)/,
       `vec2(${width.toFixed(1)}, ${height.toFixed(1)})`
@@ -2450,21 +3153,61 @@ const world = async (props) => {
 
   $STATE.subscribe('containerNeedsUpdate', handleResize);
 
-  const processAndAnimateLLMResponse = (response) => {
-    // Inject HTML response to UI
+  const getVoices = () => {
+    return new Promise((resolve) => {
+      const voices = speechSynthesis.getVoices();
+
+      if (voices.length > 0) {
+        resolve(voices);
+      } else {
+        const onVoicesChanged = () => {
+          const voices = speechSynthesis.getVoices();
+          if (voices.length > 0) {
+            speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
+            resolve(voices);
+          }
+        };
+        speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+      }
+    });
+  };
+
+  const initializeTTS = async () => {
+    const allAvailableVoices = await getVoices();
+
+    const selectedLanguage = 'en-US';
+    const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
+    const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea' || 'Google US English');
+
+    const voiceOptions = {
+      voice: selectedVoice,
+      rate: 0.8,
+      pitch: 1.05,
+      volume: 0.25,
+      ssml: true,
+      emphasis: 'strong',
+      breakAfter: 250,
+      onEnd: () => console.log('utterance ended')
+    };
+
+    const tts = new NaturalTTS(selectedLanguage, voiceOptions);
+
+    return { tts, voiceOptions };
+  };
+
+  const processAndAnimateLLMResponse = async (response) => {
+    const { tts, voiceOptions } = await initializeTTS();
+
     const container = document.querySelector('.response-container');
     if (container && response.html) {
       container.innerHTML = response.html;
     }
 
-    // Play animation if present
     if (response.animationData) {
-      const anim = response.animationData;
-
-      const allAnimations = animationController.getAnimations();
-      const animationName = allAnimations[UTILITIES.randomInt(1, allAnimations.length)];
-      console.log('playing animation: ', animationName);
-      animationController.play(animationName);
+      const animData = response.animationData;
+      animData.loop = (animData.options && animData.options.loop === 1) ? THREE.LoopOnce : THREE.LoopRepeat;
+      animationController.play(animData.name, animData.options);
+      tts.speak(response.content, voiceOptions);
     }
   };
 
@@ -2473,12 +3216,7 @@ const world = async (props) => {
 
   $STATE.subscribe('toggleBrainViz', (state) => {
     networkVizToggleState = state;
-    networkViz.toggleAll(networkVizToggleState);
-  });
-
-  $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
-    // console.log(feedback);
-    brainInstance.applyHumanFeedback(feedback);
+    networkViz.toggle(networkVizToggleState);
   });
 
   $STATE.subscribe('switchFilterUp', updateMaterial);
@@ -2525,7 +3263,7 @@ const prepEntityMatter = async (scene, props) => {
 
     model = gltf.scene;
 
-    console.log('CCDIKSolver: ', THREE.CCDIKSolver);
+    // console.log('CCDIKSolver: ', THREE.CCDIKSolver);
 
     // Get and log bone data immediately after loading
     const boneData = getBoneData(model);
@@ -2593,16 +3331,63 @@ const prepEntityMotion = (matterResult, scene, props) => {
 
   const animationController = {
     play: (name, options = {}) => {
-      const state = animationStates[name];
-      if (!state) return;
-      state.action.reset();
-      state.currentSpeed = options.speed || state.baseSpeed;
-      state.action.setEffectiveTimeScale(state.currentSpeed * globalSpeed);
-      state.action.setLoop(options.loop || state.loop);
-      state.action.clampWhenFinished = options.clamp || false;
-      state.action.play();
-      state.isPlaying = true;
+      const mode = options.mode || 'play';
+      const duration = options.fadeDuration ?? 0.4;
+      const modeList = Array.isArray(mode) ? mode : mode.split('|');
+
+      const sequence = options.sequence || [name];
+      const lastName = sequence[sequence.length - 1];
+
+      const playClip = (fromState, toState, fadeDuration, isFinal = false) => {
+        if (fromState && modeList.includes("crossfade")) {
+          fromState.action.fadeOut(fadeDuration);
+        } else if (fromState && fromState.isPlaying) {
+          fromState.action.stop();
+          fromState.isPlaying = false;
+        }
+
+        toState.action.reset();
+        toState.action.fadeIn(fadeDuration).play();
+        toState.currentSpeed = options.speed || toState.baseSpeed;
+        toState.action.setEffectiveTimeScale(toState.currentSpeed * globalSpeed);
+
+        // Apply loop/clamp to the final animation in the sequence
+        if (isFinal) {
+          const loopType = options.loop ?? toState.loop;
+          toState.action.setLoop(loopType);
+          toState.action.clampWhenFinished = loopType === THREE.LoopOnce;
+        }
+
+        toState.isPlaying = true;
+      };
+
+      // Stop everything if toggle is set and last is already playing
+      const finalState = animationStates[lastName];
+      if (!finalState) return;
+      if (modeList.includes("toggle") && finalState.isPlaying) {
+        finalState.action.stop();
+        finalState.isPlaying = false;
+        return;
+      }
+
+      // Play sequence (crossfading between them)
+      let prevState = null;
+      sequence.forEach((animName, idx) => {
+        const state = animationStates[animName];
+        if (!state) return;
+
+        const isFinal = idx === sequence.length - 1;
+        setTimeout(() => {
+          playClip(prevState, state, duration, isFinal);
+        }, idx * duration * 1000); // delay each step in chain
+        prevState = state;
+      });
     },
+    // play("walk", {
+    //   sequence: ["idle", "shrug", "walk"],
+    //   mode: "crossfade",
+    //   loop: THREE.LoopOnce
+    // });
     stop: (name) => {
       const state = animationStates[name];
       if (state) {
@@ -2663,7 +3448,10 @@ const prepEntityMotion = (matterResult, scene, props) => {
         }
       });
     },
-    getAnimations: () => Object.keys(animationStates),
+    getAnimations: (byName= false) => {
+      const animKeys = Object.keys(animationStates);
+      return animKeys;
+    },
     getCurrentAnimations: () => Object.entries(animationStates)
       .filter(([_, state]) => state.isPlaying)
       .map(([name]) => name),
@@ -2693,7 +3481,7 @@ const prepEntityMotion = (matterResult, scene, props) => {
         fadeDuration: 0.2
       };
     });
-    console.log('Available animations:', Object.keys(animationStates));
+    // console.log('Available animations:', JSON.stringify(Object.keys(animationStates)));
   }
 
   // Play initial animation if specified
@@ -2740,6 +3528,7 @@ const prepEntity = async (scene, props) => {
       raycastPlane: motion.raycastPlane,
       animationController: motion.animationController,
       ikSolver: motion.ikSolver,
+      boneData: matter.boneData,
       dispose: () => {
         matter.dispose();
         motion.dispose();
@@ -2845,23 +3634,48 @@ window.$STATE = StateManager;
 // ====== dna.js ======
 const STORAGE_KEY = 'personasync_v1.0_STORAGE';
 
-// For testing purposes only
-const saveData = (data) => {
-  chrome.storage.local.set({ [STORAGE_KEY]: data });
+// Use chrome.storage.local if available, else fallback to localStorage
+const isChromeExtension = typeof chrome !== 'undefined' && chrome.storage?.local;
+
+const saveData = async (data) => {
+  if (isChromeExtension) {
+    await chrome.storage.local.set({ [STORAGE_KEY]: data });
+  } else {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn('localStorage save failed', e);
+    }
+  }
 };
 
 const loadData = async () => {
-  return new Promise((resolve, reject) => {
-    chrome.storage.local.get([STORAGE_KEY], (result) => {
-      if (result[STORAGE_KEY]) {
-        console.log('success retrieving: ', result[STORAGE_KEY]);
-        resolve(result[STORAGE_KEY]);
-      } else {
-        reject("No Data");
-      }
+  if (isChromeExtension) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([STORAGE_KEY], (result) => {
+        if (result[STORAGE_KEY]) {
+          // console.log('success retrieving from chrome.storage: ', result[STORAGE_KEY]);
+          resolve(result[STORAGE_KEY]);
+        } else {
+          resolve({});
+        }
+      });
     });
-  });
-}
+  } else {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        // console.log('success retrieving from localStorage: ', JSON.parse(data));
+        return JSON.parse(data);
+      } else {
+        return {};
+      }
+    } catch (e) {
+      console.warn('localStorage load failed', e);
+      return {};
+    }
+  }
+};
 
 window.saveData = saveData;
 window.loadData = loadData;
@@ -2871,12 +3685,15 @@ window.loadData = loadData;
 const mainContentHTML = `
   <div id="personasync">
     <div id="personasync-content">
-      <div id="resizeHandle"></div>
+      <div id="resizeHandle" title="Resize Persona Window"></div>
+      <div id="minimizeHandle" title="Minimize Persona"></div>
       <div class="response-container"></div>
       <canvas id="personawindow"></canvas>
       <div id="radialui"></div>
       <input type="text" id="promptBox" placeholder="Ask me something..." />
     </div>
+    <div id="wipBanner">WIP🛠</div>
+    <div id="clickMeSign">Click Me</div>
   </div>
 `;
 
@@ -3008,13 +3825,19 @@ const renderViewWindow = async (options = {}) => {
 };
 
 const setupWindow = async (options) => {
+    let firstClick = options.storageData?.firstClicked || false;
+
     const inputManager = createInputManager(window);
     const container = document.getElementById('personasync');
     const contentDiv = document.getElementById('personasync-content');
     const resizeHandle = document.getElementById('resizeHandle');
+    const minimizeHandle = document.getElementById('minimizeHandle');
     const canvas = document.getElementById('personawindow');
     const radialContainer = document.getElementById('radialui');
     const promptBox = document.getElementById('promptBox');
+    const wipBanner = document.getElementById('wipBanner');
+    const clickMeSign = document.getElementById('clickMeSign');
+    if (firstClick) clickMeSign.style.display = 'none';
 
     // Initialize canvas
     canvas.width = container.clientWidth;
@@ -3038,28 +3861,31 @@ const setupWindow = async (options) => {
     // Set up prompt box handling
     promptBox.addEventListener('keyup', (event) => {
         if (event.key === 'Enter' && promptBox.value.trim()) {
-            const data = { prompt: promptBox.value, ENV: options.ENV };
+            const data = { mode: 'baked', prompt: promptBox.value, ENV: options.ENV };
             $STATE.set('callAncestors', data);
             promptBox.value = '';
         }
     });
 
     // Resize functionality (width and height)
-    let isResizing = false;
+    let isResizing = false, minimize = false;
     let startX, startY, startWidth, startHeight;
 
-    const handleResizeStart = (data) => {
+    const handleDragStart = (data) => {
         if (data.event.target === resizeHandle) {
-            isResizing = true;
-            startX = data.currentPosition.x;
-            startY = data.currentPosition.y;
-            startWidth = container.clientWidth;
-            startHeight = container.clientHeight;
-            data.event.preventDefault();
+          isResizing = true;
+          startX = data.currentPosition.x;
+          startY = data.currentPosition.y;
+          startWidth = container.clientWidth;
+          startHeight = container.clientHeight;
+          data.event.preventDefault();
+        }
+        else if (data.event.target === minimizeHandle) {
+          minimize = true;
         }
     };
 
-    const handleResizeMove = (data) => {
+    const handleMove = (data) => {
         if (!isResizing) return;
 
         const dx = data.currentPosition.x - startX;
@@ -3081,27 +3907,31 @@ const setupWindow = async (options) => {
         }
     };
 
-    const handleResizeEnd = () => {
+    const handleUp = () => {
+      if (isResizing) {
         isResizing = false;
         $STATE.set('containerNeedsUpdate', true);
+      }
+      else if(minimize) {
+        console.log('minimize the visualization!!!');
+      }
     };
 
     // Set up input manager handlers
-    inputManager.on('click', handleResizeStart);
-    inputManager.on('move', handleResizeMove);
-    inputManager.on('idle', handleResizeEnd);
-    inputManager.on('touchStart', handleResizeStart);
-    inputManager.on('touchMove', handleResizeMove);
-    inputManager.on('touchEnd', handleResizeEnd);
+    inputManager.on('click', handleDragStart);
+    inputManager.on('move', handleMove);
+    inputManager.on('idle', handleUp);
+    inputManager.on('touchStart', handleDragStart);
+    inputManager.on('touchMove', handleMove);
+    inputManager.on('touchEnd', handleUp);
 
     // Toggle UI visibility
     const toggleUI = () => {
         const isVisible = resizeHandle.style.display !== 'block';
         radialContainer.style.display = isVisible ? 'block' : 'none';
         resizeHandle.style.display = isVisible ? 'block' : 'none';
+        minimizeHandle.style.display = isVisible ? 'block' : 'none';
         promptBox.style.display = isVisible ? 'block' : 'none';
-
-        console.log(container);
         container.style.border = isVisible ? '2px solid #000' : 'none';
 
         if (isVisible) {
@@ -3110,9 +3940,20 @@ const setupWindow = async (options) => {
                 buttonLayout: options.buttonLayout
             });
         }
+
+        if (!firstClick) {
+          firstClick = true;
+          clickMeSign.style.display = 'none';
+          saveData({
+            firstClicked: true
+          })
+        }
     };
 
     $STATE.subscribe('toggleUI', toggleUI);
+    $STATE.subscribe('toggleBrainViz', (state) => {
+      wipBanner.style.display = state ? 'flex' : 'none';
+    })
 
     return {
         container,
@@ -3149,14 +3990,25 @@ const startPersonaMotion = async (arguments) => {
     }
   };
 
-  try {
-    const { brainInstance } = await initiateLeftBrain();
+  let storageData, brainInstance;
+  try{
+    storageData = await loadData();
+
+    const leftBrain = await initiateLeftBrain();
+    brainInstance = leftBrain.brainInstance;
     await initiateRightBrain();
+  }
+  catch(err){
+    console.error("Brain load error: ", err);
+  }
+
+  try {
 
     const initialFunctionalState = {
       toggleBrainViz: false
     };
     const { container, canvas, inputManager } = await renderViewWindow({
+      storageData,
       brainInstance,
       buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
       promptPosition: 'top', // or 'bottom'
@@ -3179,12 +4031,12 @@ const startPersonaMotion = async (arguments) => {
       ],
       ENV
     });
-    const newWorld = await world({ brainInstance, canvas, modelURL, ENV });
+    const newWorld = await world({ storageData, brainInstance, canvas, modelURL, ENV });
 
-    // window.addEventListener("keyup", async (event) => {
-    //   const loadedStorageData = await loadData();
-    //   console.log(loadedStorageData);
-    // })
+    $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
+      // console.log(feedback);
+      brainInstance.applyHumanFeedback(feedback);
+    });
   }
   catch(err){
     console.error(err);

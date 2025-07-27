@@ -1,6 +1,6 @@
 (async () => {
   // Load CSS
-  const cssURL = chrome.runtime.getURL('persona/view/styling.css');
+  const cssURL = chrome.runtime.getURL('persona/view/personamotionstyles.css');
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = cssURL;

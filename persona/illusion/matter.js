@@ -32,7 +32,7 @@ const prepEntityMatter = async (scene, props) => {
 
     model = gltf.scene;
 
-    console.log('CCDIKSolver: ', THREE.CCDIKSolver);
+    // console.log('CCDIKSolver: ', THREE.CCDIKSolver);
 
     // Get and log bone data immediately after loading
     const boneData = getBoneData(model);

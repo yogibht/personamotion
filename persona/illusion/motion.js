@@ -159,7 +159,7 @@ const prepEntityMotion = (matterResult, scene, props) => {
         fadeDuration: 0.2
       };
     });
-    console.log('Available animations:', JSON.stringify(Object.keys(animationStates)));
+    // console.log('Available animations:', JSON.stringify(Object.keys(animationStates)));
   }
 
   // Play initial animation if specified

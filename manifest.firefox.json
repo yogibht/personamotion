@@ -1,12 +1,12 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "PersonaMotion",
   "version": "1.0",
   "description": "Persona Motion",
-  "permissions": ["scripting", "storage", "activeTab", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": ["storage", "activeTab", "tabs", "<all_urls>"],
   "background": {
-    "service_worker": "./extension/browserevents.js"
+    "scripts": ["extension/browserevents.js"],
+    "persistent": false
   },
   "content_scripts": [
     {
@@ -23,12 +23,12 @@
         "persona/brains/first.js",
         "persona/brains/second.js",
         "persona/brains/third.js",
-        "persona/expression/speech.js",
-        "persona/expression/aesthetics.js",
-        "persona/expression/world.js",
-        "persona/expression/matter.js",
-        "persona/expression/motion.js",
-        "persona/expression/entity.js",
+        "persona/illusion/speech.js",
+        "persona/illusion/aesthetics.js",
+        "persona/illusion/world.js",
+        "persona/illusion/matter.js",
+        "persona/illusion/motion.js",
+        "persona/illusion/entity.js",
         "persona/identity/memory.js",
         "persona/identity/dna.js",
         "persona/view/window.js",
@@ -40,19 +40,14 @@
     }
   ],
   "web_accessible_resources": [
-    {
-      "resources": [
-        "configurator/*",
-        "compute/worker.js",
-        "lib/*",
-        "persona/*",
-        "models/*.glb",
-        "env.json"
-      ],
-      "matches": ["<all_urls>"]
-    }
+    "configurator/*",
+    "compute/worker.js",
+    "lib/*",
+    "persona/*",
+    "models/*.glb",
+    "env.json"
   ],
-  "action": {
+  "browser_action": {
     "default_popup": "configurator/welcome.html",
     "default_icon": "icon.png"
   },
