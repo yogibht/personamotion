@@ -1,3 +1,4 @@
+/*
 body {
     font-family: "Segoe UI", system-ui, sans-serif;
     margin: 0;
@@ -6,19 +7,19 @@ body {
     overflow: hidden;
     position: relative;
     background: #000;
-    /* Base grid pattern */
+
     background-image:
-    /* Geometric grid (inspired by QwqBKG) */
+
         linear-gradient(#111 1px, transparent 1px),
         linear-gradient(90deg, #111 1px, transparent 1px),
-        /* Comic dots */
+
             radial-gradient(
                 circle at center,
                 var(--color1) 1px,
                 transparent 1px
             ),
         radial-gradient(circle at center, var(--color2) 1px, transparent 1px),
-        /* Speed lines */
+
             repeating-linear-gradient(
                 45deg,
                 transparent,
@@ -35,11 +36,11 @@ body {
         );
     background-size:
         50px 50px,
-        /* Grid */ 50px 50px,
-        /* Grid */ 30px 30px,
-        /* Dots */ 30px 30px,
-        /* Dots */ 200px 200px,
-        /* Lines */ 300px 300px; /* Lines */
+        50px 50px,
+        30px 30px,
+        30px 30px,
+        200px 200px,
+        300px 300px;
     animation:
         colorShift 15s infinite alternate,
         gridMove 40s linear infinite;
@@ -49,7 +50,6 @@ body {
     --color4: rgba(0, 200, 255, 0.5);
 }
 
-/* Animated pseudo-element for floating effects */
 body::before {
     content: "";
     position: absolute;
@@ -63,6 +63,11 @@ body::before {
     mix-blend-mode: overlay;
     opacity: 0.5;
     animation: float 20s infinite linear;
+}
+*/
+
+body {
+    background: #0066ff;
 }
 
 /* Keyframes for animations */

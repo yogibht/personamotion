@@ -94,6 +94,11 @@ const world = async (props) => {
     });
 
     const { model, raycastPlane, boneData } = entity;
+
+    // const ikSolver = new THREE.CCDIKSolver(model, boneData);
+    // const ikHelper = new THREE.CCDIKHelper(model, boneData);
+    // scene.add(ikHelper);
+
     animationController = entity.animationController;
     animationController.setFPS(60);
     animationController.play('happyandidle', {loop: true});
