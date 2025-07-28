@@ -67,9 +67,9 @@ const world = async (props) => {
 
   postScene.add(quad);
 
-  let anim, animationController, networkViz, networkVizToggleState = false;
+  let anim, animationController, networkViz, networkVizType, brainData;
   try {
-    const brainData = brainInstance.generateGraphData();
+    brainData = brainInstance.generateGraphData();
     networkViz = createLivingBrainViz(scene, brainData, {
       width: canvas.width,
       height: canvas.height,
@@ -81,7 +81,7 @@ const world = async (props) => {
     //   spiralTightness: 2.0,
     //   numArms: 5
     // });
-    networkViz.toggle(networkVizToggleState);
+    networkViz.toggle(networkVizType !== undefined);
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -147,7 +147,7 @@ const world = async (props) => {
       ({ threejs }) => {
         animationController.update(threejs.delta);
 
-        if (networkVizToggleState) {
+        if (networkVizType !== undefined) {
           const brainData = brainInstance.generateGraphData();
           // console.log(networkViz.getPerformanceInfo());
           networkViz.updateGraph(brainData);
@@ -272,8 +272,32 @@ const world = async (props) => {
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
   $STATE.subscribe('toggleBrainViz', (state) => {
-    networkVizToggleState = state;
-    networkViz.toggle(networkVizToggleState);
+    if (networkVizType === state) {
+      networkVizType = undefined;
+    }
+    else {
+      networkVizType = state;
+    }
+    if (networkVizType === 'bulb') {
+      networkViz.dispose();
+      networkViz = undefined;
+      networkViz = createLivingBrainViz(scene, brainData, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    else if (networkVizType !== undefined){
+      networkViz.dispose();
+      networkViz = undefined;
+      networkViz = createGalaxyBrainViz(scene, brainData, {
+        particleSize: 2.0,
+        brightness: 2.0,
+        rotationSpeed: 0.1,
+        spiralTightness: 2.0,
+        numArms: 5
+      });
+    }
+    if (networkViz) networkViz.toggle(networkVizType !== undefined);
   });
 
   $STATE.subscribe('switchFilterUp', updateMaterial);

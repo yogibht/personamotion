@@ -979,26 +979,24 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     linkCnt: { value: 0 },
     proj:    { value: new THREE.Matrix4() },
     view:    { value: new THREE.Matrix4() },
-    uDisplacementRange: { value: 1 }, // NEW: Uniform for max vertex displacement range
-    colorNodePos: { value: new THREE.Color(0xcc00cc) }, // Vibrant Medium Magenta
-    colorNodeNeg: { value: new THREE.Color(0x77aa00) }, // Deep Acidic Green
-    colorLinkPos: { value: new THREE.Color(0xd94f00) }, // Saturated Orange-Red
-    colorLinkNeg: { value: new THREE.Color(0x7700ee) }, // Strong Electric Purple
-    colorFresnel: { value: new THREE.Color(0x0099cc) }, // Vibrant Tech Blue
-    colorGrid:    { value: new THREE.Color(0xe8e8e8) }, // Neutral Very Light Grey
-    colorVoronoiEdge: { value: new THREE.Color(0xcccccc) } // Medium Light Grey
+    uDisplacementRange: { value: 1 },
+    colorNodePos: { value: new THREE.Color(0xcc00cc) },
+    colorNodeNeg: { value: new THREE.Color(0x77aa00) },
+    colorLinkPos: { value: new THREE.Color(0xd94f00) },
+    colorLinkNeg: { value: new THREE.Color(0x7700ee) },
+    colorFresnel: { value: new THREE.Color(0x0099cc) },
+    colorGrid:    { value: new THREE.Color(0xe8e8e8) },
+    colorVoronoiEdge: { value: new THREE.Color(0xcccccc) }
   };
 
-  const sphereGeo = new THREE.SphereGeometry(1, 128, 64); // SphereGeometry includes 'normal' attribute
+  const sphereGeo = new THREE.SphereGeometry(1, 128, 64);
   const sphereMat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: `
     uniform sampler2D nodeTex;
     uniform float nodeCnt;
-    // uniform float uTime; // REMOVED: No uTime uniform
     uniform float uDisplacementRange;
     varying float vBias;
-    // attribute vec3 normal; // This line is REMOVED to avoid 'redefinition' error
 
     const float MAX_N = 2048.0;
 
@@ -1029,7 +1027,7 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
 
     float displacementAmount = dramaticBiasInfluence * uDisplacementRange;
 
-    displaced += normal * displacementAmount; // 'normal' is implicitly available
+    displaced += normal * displacementAmount;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
     }`,
 
@@ -1062,6 +1060,8 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   group.add(sphereMesh);
 
   const nodeMap = new Map();
+  let disposed = false;
+
   const spherePos = (i, total, layer, maxLayer) => {
     const y = 1.0 - 2.0 * (i / total);
     const radius = Math.sqrt(1.0 - y * y);
@@ -1070,15 +1070,19 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   }
 
   const updateGraph = (graph) => {
+    if (disposed) return;
+
     const nodes = graph.nodes || [], links = graph.links || [];
     const nCount = Math.min(nodes.length, MAX_NODES), lCount = Math.min(links.length, MAX_LINKS);
     const id2idx = new Map(nodes.map((n, i) => [n.id, i]));
+
     for (let i = 0; i < nCount; i++) {
       const pos = spherePos(i, nCount, nodes[i].layer, 6);
       nodeBuf.set([pos.x, pos.y, pos.z, nodes[i].bias || 0], i * 4);
       nodeMap.set(nodes[i].id, pos);
     }
     nodeTex.needsUpdate = true;
+
     let lIdx = 0;
     for (const l of links) {
       if (lIdx >= MAX_LINKS) break;
@@ -1096,11 +1100,66 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   }
 
   const animate = (cam, t) => {
+    if (disposed) return;
+
     sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
     sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
-    // sphereMat.uniforms.uTime.value = t; // IMPORTANT: Update the time uniform each frame for animation
-
     group.rotation.y += 0.005;
+  }
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+
+    // Remove from scene
+    if (scene && group.parent === scene) {
+      scene.remove(group);
+    }
+
+    // Dispose geometry
+    if (sphereGeo) {
+      sphereGeo.dispose();
+    }
+
+    // Dispose material and its uniforms
+    if (sphereMat) {
+      // Dispose textures in uniforms
+      if (sphereMat.uniforms.nodeTex?.value) {
+        sphereMat.uniforms.nodeTex.value.dispose();
+      }
+      if (sphereMat.uniforms.linkTex?.value) {
+        sphereMat.uniforms.linkTex.value.dispose();
+      }
+
+      sphereMat.dispose();
+    }
+
+    // Dispose textures
+    if (nodeTex) {
+      nodeTex.dispose();
+    }
+    if (linkTex) {
+      linkTex.dispose();
+    }
+
+    // Clear data structures
+    nodeMap.clear();
+
+    // Clear mesh references
+    if (sphereMesh) {
+      sphereMesh.geometry = null;
+      sphereMesh.material = null;
+    }
+
+    // Clear group children
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+
+    console.log('LivingBrainViz disposed');
   }
 
   updateGraph(initialGraph || { nodes: [], links: [] });
@@ -1108,8 +1167,9 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   return {
     updateGraph,
     animate,
-    setScale: s => sphereMesh.scale.setScalar(s),
-    toggle: v => { sphereMesh.visible = v; }
+    dispose,
+    setScale: s => !disposed && sphereMesh.scale.setScalar(s),
+    toggle: v => !disposed && (sphereMesh.visible = v)
   };
 };
 
@@ -1121,13 +1181,8 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
   group.position.y = 2.5;
   scene.add(group);
 
-  // Galaxy-style uniforms adapted for brain networks
-  const uniforms = {
-    uSize: { value: props.particleSize || 1.5 },
-    uTime: { value: 0.0 },
-    uMap: { value: null },
-    uBrightness: { value: props.brightness || 2.0 }
-  };
+  let disposed = false;
+  let circleTexture = null;
 
   // Create circular particle texture
   const createCircleTexture = () => {
@@ -1150,9 +1205,15 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     return texture;
   };
 
-  uniforms.uMap.value = createCircleTexture();
+  circleTexture = createCircleTexture();
 
-  // Galaxy vertex shader with neural network influence
+  const uniforms = {
+    uSize: { value: props.particleSize || 1.5 },
+    uTime: { value: 0.0 },
+    uMap: { value: circleTexture },
+    uBrightness: { value: props.brightness || 2.0 }
+  };
+
   const vertexShader = `
     uniform mat4 projectionMatrix;
     uniform mat4 modelMatrix;
@@ -1174,15 +1235,10 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
 
     void main() {
         vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-
-        // Static galaxy structure - no time-based movement of vertices
-        // Particles stay in their fixed spiral positions
-
         vec4 viewPosition = viewMatrix * modelPosition;
         vec4 projectedPosition = projectionMatrix * viewPosition;
         gl_Position = projectedPosition;
 
-        // Size varies with neural influence and distance (static positioning)
         float neuralBrightening = (1.0 + aNeuralInfluence * 2.0);
         float distanceAttenuation = (1.0 - aDistance * 0.3);
         gl_PointSize = uSize * aScale * neuralBrightening * distanceAttenuation;
@@ -1194,7 +1250,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     }
   `;
 
-  // Galaxy fragment shader with neural-inspired effects
   const fragmentShader = `
     precision highp float;
 
@@ -1205,7 +1260,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     varying float vDistance;
     varying float vNeuralInfluence;
 
-    // Neural firing pattern noise (only for visual effects, not positioning)
     float hash21(in vec2 n) {
         return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
     }
@@ -1214,7 +1268,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
         vec2 i = floor(p * 8.0);
         vec2 f = fract(p * 8.0);
 
-        // Static noise based on position and neural influence only
         float a = hash21(i + influence * 10.0);
         float b = hash21(i + vec2(1.0, 0.0) + influence * 10.0);
         float c = hash21(i + vec2(0.0, 1.0) + influence * 10.0);
@@ -1224,7 +1277,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
 
         float noise = mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 
-        // Static firing pattern based on noise threshold
         return step(0.5, noise) * (noise * 0.8 + 0.2);
     }
 
@@ -1234,24 +1286,18 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
         vec4 pointTexture = texture2D(uMap, uv);
         if (pointTexture.a < 0.1) discard;
 
-        // Static neural firing effect (no time dependency)
         float firing = neuralFiring(gl_PointCoord.xy, vNeuralInfluence);
         float neuralPulse = vNeuralInfluence * firing * 0.8 + 0.2;
 
-        // Galaxy-style color variation with neural influence
         vec3 finalColor = vColor * pointTexture.rgb;
 
-        // Brighter stars have neural activity influence
         float neuralGlow = 1.0 + vNeuralInfluence * neuralPulse * 2.0;
-
-        // Distance-based dimming (like real galaxy)
         float distanceDim = 1.0 - vDistance * 0.4;
 
         gl_FragColor = vec4(finalColor * neuralGlow * distanceDim, pointTexture.a) * uBrightness;
     }
   `;
 
-  // Create galaxy geometry
   const geometry = new THREE.BufferGeometry();
   const vertices = new Float32Array(MAX_PARTICLES * 3);
   const colors = new Float32Array(MAX_PARTICLES * 3);
@@ -1281,12 +1327,12 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
 
   let particleCount = 0;
 
-  // Generate galaxy structure influenced by brain network
   const generateGalaxyFromBrain = (graph) => {
+    if (disposed) return;
+
     const nodes = graph.nodes || [];
     const links = graph.links || [];
 
-    // Build connection map
     const connectionMap = new Map();
     nodes.forEach(node => {
       connectionMap.set(node.id, {
@@ -1323,12 +1369,11 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     const randomParticles = MAX_PARTICLES - (particlesPerArm * armCount);
     let maxDistance = 0;
 
-    // Helper: Convert normalized bias to HSL color
     const colorFromBias = (bias, dim = false) => {
       const clamped = Math.max(-1, Math.min(1, bias));
       const t = (clamped + 1) / 2;
 
-      let hue = 0.67 - t * 0.67; // blue → red
+      let hue = 0.67 - t * 0.67;
       let sat = dim ? 0.6 : 0.9;
       let light = dim ? 0.3 + t * 0.2 : 0.5 + t * 0.3;
 
@@ -1419,16 +1464,71 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
   }
 
   const updateGraph = (graph) => {
-    generateGalaxyFromBrain(graph);
+    if (!disposed) {
+      generateGalaxyFromBrain(graph);
+    }
   }
 
-  const  animate = (camera, time) => {
-    // Only rotate the entire galaxy group (not individual particles)
-    group.rotation.y += 0.002;
+  const animate = (camera, time) => {
+    if (disposed) return;
 
-    // Add slight wobble for more organic feel
+    group.rotation.y += 0.002;
     group.rotation.x = UTILITIES.toRadian(35) + Math.sin(time * 0.001) * 0.05;
     group.rotation.z = Math.cos(time * 0.0015) * 0.03;
+  }
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+
+    // Remove from scene
+    if (scene && group.parent === scene) {
+      scene.remove(group);
+    }
+
+    // Dispose geometry and its attributes
+    if (geometry) {
+      geometry.dispose();
+    }
+
+    // Dispose material and its uniforms
+    if (material) {
+      // Dispose textures in uniforms
+      if (material.uniforms.uMap?.value) {
+        material.uniforms.uMap.value.dispose();
+      }
+      material.dispose();
+    }
+
+    // Dispose the circle texture
+    if (circleTexture) {
+      circleTexture.dispose();
+      circleTexture = null;
+    }
+
+    // Clear points mesh references
+    if (galaxyPoints) {
+      galaxyPoints.geometry = null;
+      galaxyPoints.material = null;
+    }
+
+    // Clear group children
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+
+    // Clear typed arrays (help GC)
+    vertices.fill(0);
+    colors.fill(0);
+    scales.fill(0);
+    distances.fill(0);
+    neuralInfluences.fill(0);
+    armIndices.fill(0);
+
+    console.log('GalaxyBrainViz disposed');
   }
 
   // Initialize
@@ -1437,10 +1537,11 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
   return {
     updateGraph,
     animate,
-    setScale: (s) => group.scale.setScalar(s),
-    toggle: (visible) => { group.visible = visible; },
-    setBrightness: (brightness) => { uniforms.uBrightness.value = brightness; },
-    setParticleSize: (size) => { uniforms.uSize.value = size; }
+    dispose,
+    setScale: (s) => !disposed && group.scale.setScalar(s),
+    toggle: (visible) => !disposed && (group.visible = visible),
+    setBrightness: (brightness) => !disposed && (uniforms.uBrightness.value = brightness),
+    setParticleSize: (size) => !disposed && (uniforms.uSize.value = size)
   };
 };
 
