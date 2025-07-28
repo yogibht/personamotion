@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T08:27:05.743Z
+// Combined at 2025-07-28T08:37:30.016Z
 // 16 files
 
 
@@ -1189,7 +1189,7 @@ const callAncestors = async (data) => {
     });
 
     let processedcall = JSON.parse(homecall);
-    console.log(processedcall);
+
     let response_text = '';
     if (selectedThirdBrain === 'GEMINI') {
       response_text = processedcall?.candidates?.[0]?.content?.parts?.[0]?.text;
