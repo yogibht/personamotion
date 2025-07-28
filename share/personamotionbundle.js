@@ -1189,6 +1189,7 @@ const callAncestors = async (data) => {
     });
 
     let processedcall = JSON.parse(homecall);
+
     let response_text = '';
     if (selectedThirdBrain === 'GEMINI') {
       response_text = processedcall?.candidates?.[0]?.content?.parts?.[0]?.text;
