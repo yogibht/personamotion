@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T01:05:07.168Z
+// Combined at 2025-07-28T03:24:15.896Z
 // 16 files
 
 
@@ -2390,26 +2390,24 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
     linkCnt: { value: 0 },
     proj:    { value: new THREE.Matrix4() },
     view:    { value: new THREE.Matrix4() },
-    uDisplacementRange: { value: 1 }, // NEW: Uniform for max vertex displacement range
-    colorNodePos: { value: new THREE.Color(0xcc00cc) }, // Vibrant Medium Magenta
-    colorNodeNeg: { value: new THREE.Color(0x77aa00) }, // Deep Acidic Green
-    colorLinkPos: { value: new THREE.Color(0xd94f00) }, // Saturated Orange-Red
-    colorLinkNeg: { value: new THREE.Color(0x7700ee) }, // Strong Electric Purple
-    colorFresnel: { value: new THREE.Color(0x0099cc) }, // Vibrant Tech Blue
-    colorGrid:    { value: new THREE.Color(0xe8e8e8) }, // Neutral Very Light Grey
-    colorVoronoiEdge: { value: new THREE.Color(0xcccccc) } // Medium Light Grey
+    uDisplacementRange: { value: 1 },
+    colorNodePos: { value: new THREE.Color(0xcc00cc) },
+    colorNodeNeg: { value: new THREE.Color(0x77aa00) },
+    colorLinkPos: { value: new THREE.Color(0xd94f00) },
+    colorLinkNeg: { value: new THREE.Color(0x7700ee) },
+    colorFresnel: { value: new THREE.Color(0x0099cc) },
+    colorGrid:    { value: new THREE.Color(0xe8e8e8) },
+    colorVoronoiEdge: { value: new THREE.Color(0xcccccc) }
   };
 
-  const sphereGeo = new THREE.SphereGeometry(1, 128, 64); // SphereGeometry includes 'normal' attribute
+  const sphereGeo = new THREE.SphereGeometry(1, 128, 64);
   const sphereMat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: `
     uniform sampler2D nodeTex;
     uniform float nodeCnt;
-    // uniform float uTime; // REMOVED: No uTime uniform
     uniform float uDisplacementRange;
     varying float vBias;
-    // attribute vec3 normal; // This line is REMOVED to avoid 'redefinition' error
 
     const float MAX_N = 2048.0;
 
@@ -2440,7 +2438,7 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
 
     float displacementAmount = dramaticBiasInfluence * uDisplacementRange;
 
-    displaced += normal * displacementAmount; // 'normal' is implicitly available
+    displaced += normal * displacementAmount;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
     }`,
 
@@ -2473,6 +2471,8 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   group.add(sphereMesh);
 
   const nodeMap = new Map();
+  let disposed = false;
+
   const spherePos = (i, total, layer, maxLayer) => {
     const y = 1.0 - 2.0 * (i / total);
     const radius = Math.sqrt(1.0 - y * y);
@@ -2481,15 +2481,19 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   }
 
   const updateGraph = (graph) => {
+    if (disposed) return;
+
     const nodes = graph.nodes || [], links = graph.links || [];
     const nCount = Math.min(nodes.length, MAX_NODES), lCount = Math.min(links.length, MAX_LINKS);
     const id2idx = new Map(nodes.map((n, i) => [n.id, i]));
+
     for (let i = 0; i < nCount; i++) {
       const pos = spherePos(i, nCount, nodes[i].layer, 6);
       nodeBuf.set([pos.x, pos.y, pos.z, nodes[i].bias || 0], i * 4);
       nodeMap.set(nodes[i].id, pos);
     }
     nodeTex.needsUpdate = true;
+
     let lIdx = 0;
     for (const l of links) {
       if (lIdx >= MAX_LINKS) break;
@@ -2507,11 +2511,64 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   }
 
   const animate = (cam, t) => {
+    if (disposed) return;
+
     sphereMat.uniforms.proj.value.copy(cam.projectionMatrix);
     sphereMat.uniforms.view.value.copy(cam.matrixWorldInverse);
-    // sphereMat.uniforms.uTime.value = t; // IMPORTANT: Update the time uniform each frame for animation
-
     group.rotation.y += 0.005;
+  }
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+
+    // Remove from scene
+    if (scene && group.parent === scene) {
+      scene.remove(group);
+    }
+
+    // Dispose geometry
+    if (sphereGeo) {
+      sphereGeo.dispose();
+    }
+
+    // Dispose material and its uniforms
+    if (sphereMat) {
+      // Dispose textures in uniforms
+      if (sphereMat.uniforms.nodeTex?.value) {
+        sphereMat.uniforms.nodeTex.value.dispose();
+      }
+      if (sphereMat.uniforms.linkTex?.value) {
+        sphereMat.uniforms.linkTex.value.dispose();
+      }
+
+      sphereMat.dispose();
+    }
+
+    // Dispose textures
+    if (nodeTex) {
+      nodeTex.dispose();
+    }
+    if (linkTex) {
+      linkTex.dispose();
+    }
+
+    // Clear data structures
+    nodeMap.clear();
+
+    // Clear mesh references
+    if (sphereMesh) {
+      sphereMesh.geometry = null;
+      sphereMesh.material = null;
+    }
+
+    // Clear group children
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
   }
 
   updateGraph(initialGraph || { nodes: [], links: [] });
@@ -2519,8 +2576,9 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
   return {
     updateGraph,
     animate,
-    setScale: s => sphereMesh.scale.setScalar(s),
-    toggle: v => { sphereMesh.visible = v; }
+    dispose,
+    setScale: s => !disposed && sphereMesh.scale.setScalar(s),
+    toggle: v => !disposed && (sphereMesh.visible = v)
   };
 };
 
@@ -2532,13 +2590,8 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
   group.position.y = 2.5;
   scene.add(group);
 
-  // Galaxy-style uniforms adapted for brain networks
-  const uniforms = {
-    uSize: { value: props.particleSize || 1.5 },
-    uTime: { value: 0.0 },
-    uMap: { value: null },
-    uBrightness: { value: props.brightness || 2.0 }
-  };
+  let disposed = false;
+  let circleTexture = null;
 
   // Create circular particle texture
   const createCircleTexture = () => {
@@ -2561,9 +2614,15 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     return texture;
   };
 
-  uniforms.uMap.value = createCircleTexture();
+  circleTexture = createCircleTexture();
 
-  // Galaxy vertex shader with neural network influence
+  const uniforms = {
+    uSize: { value: props.particleSize || 1.5 },
+    uTime: { value: 0.0 },
+    uMap: { value: circleTexture },
+    uBrightness: { value: props.brightness || 2.0 }
+  };
+
   const vertexShader = `
     uniform mat4 projectionMatrix;
     uniform mat4 modelMatrix;
@@ -2585,15 +2644,10 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
 
     void main() {
         vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-
-        // Static galaxy structure - no time-based movement of vertices
-        // Particles stay in their fixed spiral positions
-
         vec4 viewPosition = viewMatrix * modelPosition;
         vec4 projectedPosition = projectionMatrix * viewPosition;
         gl_Position = projectedPosition;
 
-        // Size varies with neural influence and distance (static positioning)
         float neuralBrightening = (1.0 + aNeuralInfluence * 2.0);
         float distanceAttenuation = (1.0 - aDistance * 0.3);
         gl_PointSize = uSize * aScale * neuralBrightening * distanceAttenuation;
@@ -2605,7 +2659,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     }
   `;
 
-  // Galaxy fragment shader with neural-inspired effects
   const fragmentShader = `
     precision highp float;
 
@@ -2616,7 +2669,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     varying float vDistance;
     varying float vNeuralInfluence;
 
-    // Neural firing pattern noise (only for visual effects, not positioning)
     float hash21(in vec2 n) {
         return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
     }
@@ -2625,7 +2677,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
         vec2 i = floor(p * 8.0);
         vec2 f = fract(p * 8.0);
 
-        // Static noise based on position and neural influence only
         float a = hash21(i + influence * 10.0);
         float b = hash21(i + vec2(1.0, 0.0) + influence * 10.0);
         float c = hash21(i + vec2(0.0, 1.0) + influence * 10.0);
@@ -2635,7 +2686,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
 
         float noise = mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 
-        // Static firing pattern based on noise threshold
         return step(0.5, noise) * (noise * 0.8 + 0.2);
     }
 
@@ -2645,24 +2695,18 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
         vec4 pointTexture = texture2D(uMap, uv);
         if (pointTexture.a < 0.1) discard;
 
-        // Static neural firing effect (no time dependency)
         float firing = neuralFiring(gl_PointCoord.xy, vNeuralInfluence);
         float neuralPulse = vNeuralInfluence * firing * 0.8 + 0.2;
 
-        // Galaxy-style color variation with neural influence
         vec3 finalColor = vColor * pointTexture.rgb;
 
-        // Brighter stars have neural activity influence
         float neuralGlow = 1.0 + vNeuralInfluence * neuralPulse * 2.0;
-
-        // Distance-based dimming (like real galaxy)
         float distanceDim = 1.0 - vDistance * 0.4;
 
         gl_FragColor = vec4(finalColor * neuralGlow * distanceDim, pointTexture.a) * uBrightness;
     }
   `;
 
-  // Create galaxy geometry
   const geometry = new THREE.BufferGeometry();
   const vertices = new Float32Array(MAX_PARTICLES * 3);
   const colors = new Float32Array(MAX_PARTICLES * 3);
@@ -2692,12 +2736,12 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
 
   let particleCount = 0;
 
-  // Generate galaxy structure influenced by brain network
   const generateGalaxyFromBrain = (graph) => {
+    if (disposed) return;
+
     const nodes = graph.nodes || [];
     const links = graph.links || [];
 
-    // Build connection map
     const connectionMap = new Map();
     nodes.forEach(node => {
       connectionMap.set(node.id, {
@@ -2734,12 +2778,11 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     const randomParticles = MAX_PARTICLES - (particlesPerArm * armCount);
     let maxDistance = 0;
 
-    // Helper: Convert normalized bias to HSL color
     const colorFromBias = (bias, dim = false) => {
       const clamped = Math.max(-1, Math.min(1, bias));
       const t = (clamped + 1) / 2;
 
-      let hue = 0.67 - t * 0.67; // blue → red
+      let hue = 0.67 - t * 0.67;
       let sat = dim ? 0.6 : 0.9;
       let light = dim ? 0.3 + t * 0.2 : 0.5 + t * 0.3;
 
@@ -2830,16 +2873,69 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
   }
 
   const updateGraph = (graph) => {
-    generateGalaxyFromBrain(graph);
+    if (!disposed) {
+      generateGalaxyFromBrain(graph);
+    }
   }
 
-  const  animate = (camera, time) => {
-    // Only rotate the entire galaxy group (not individual particles)
-    group.rotation.y += 0.002;
+  const animate = (camera, time) => {
+    if (disposed) return;
 
-    // Add slight wobble for more organic feel
+    group.rotation.y += 0.002;
     group.rotation.x = UTILITIES.toRadian(35) + Math.sin(time * 0.001) * 0.05;
     group.rotation.z = Math.cos(time * 0.0015) * 0.03;
+  }
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+
+    // Remove from scene
+    if (scene && group.parent === scene) {
+      scene.remove(group);
+    }
+
+    // Dispose geometry and its attributes
+    if (geometry) {
+      geometry.dispose();
+    }
+
+    // Dispose material and its uniforms
+    if (material) {
+      // Dispose textures in uniforms
+      if (material.uniforms.uMap?.value) {
+        material.uniforms.uMap.value.dispose();
+      }
+      material.dispose();
+    }
+
+    // Dispose the circle texture
+    if (circleTexture) {
+      circleTexture.dispose();
+      circleTexture = null;
+    }
+
+    // Clear points mesh references
+    if (galaxyPoints) {
+      galaxyPoints.geometry = null;
+      galaxyPoints.material = null;
+    }
+
+    // Clear group children
+    while (group.children.length > 0) {
+      const child = group.children[0];
+      group.remove(child);
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+
+    // Clear typed arrays (help GC)
+    vertices.fill(0);
+    colors.fill(0);
+    scales.fill(0);
+    distances.fill(0);
+    neuralInfluences.fill(0);
+    armIndices.fill(0);
   }
 
   // Initialize
@@ -2848,10 +2944,11 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
   return {
     updateGraph,
     animate,
-    setScale: (s) => group.scale.setScalar(s),
-    toggle: (visible) => { group.visible = visible; },
-    setBrightness: (brightness) => { uniforms.uBrightness.value = brightness; },
-    setParticleSize: (size) => { uniforms.uSize.value = size; }
+    dispose,
+    setScale: (s) => !disposed && group.scale.setScalar(s),
+    toggle: (visible) => !disposed && (group.visible = visible),
+    setBrightness: (brightness) => !disposed && (uniforms.uBrightness.value = brightness),
+    setParticleSize: (size) => !disposed && (uniforms.uSize.value = size)
   };
 };
 
@@ -3010,9 +3107,9 @@ const world = async (props) => {
 
   postScene.add(quad);
 
-  let anim, animationController, networkViz, networkVizToggleState = false;
+  let anim, animationController, networkViz, networkVizType, brainData;
   try {
-    const brainData = brainInstance.generateGraphData();
+    brainData = brainInstance.generateGraphData();
     networkViz = createLivingBrainViz(scene, brainData, {
       width: canvas.width,
       height: canvas.height,
@@ -3024,7 +3121,7 @@ const world = async (props) => {
     //   spiralTightness: 2.0,
     //   numArms: 5
     // });
-    networkViz.toggle(networkVizToggleState);
+    networkViz.toggle(networkVizType !== undefined);
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -3090,7 +3187,7 @@ const world = async (props) => {
       ({ threejs }) => {
         animationController.update(threejs.delta);
 
-        if (networkVizToggleState) {
+        if (networkVizType !== undefined) {
           const brainData = brainInstance.generateGraphData();
           // console.log(networkViz.getPerformanceInfo());
           networkViz.updateGraph(brainData);
@@ -3195,9 +3292,9 @@ const world = async (props) => {
     return { tts, voiceOptions };
   };
 
-  const processAndAnimateLLMResponse = async (response) => {
-    const { tts, voiceOptions } = await initializeTTS();
+  const { tts, voiceOptions } = await initializeTTS();
 
+  const processAndAnimateLLMResponse = async (response) => {
     const container = document.querySelector('.response-container');
     if (container && response.html) {
       container.innerHTML = response.html;
@@ -3215,8 +3312,32 @@ const world = async (props) => {
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
   $STATE.subscribe('toggleBrainViz', (state) => {
-    networkVizToggleState = state;
-    networkViz.toggle(networkVizToggleState);
+    if (networkVizType === state) {
+      networkVizType = undefined;
+    }
+    else {
+      networkVizType = state;
+    }
+    if (networkVizType === 'bulb') {
+      networkViz.dispose();
+      networkViz = undefined;
+      networkViz = createLivingBrainViz(scene, brainData, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    else if (networkVizType !== undefined){
+      networkViz.dispose();
+      networkViz = undefined;
+      networkViz = createGalaxyBrainViz(scene, brainData, {
+        particleSize: 2.0,
+        brightness: 2.0,
+        rotationSpeed: 0.1,
+        spiralTightness: 2.0,
+        numArms: 5
+      });
+    }
+    if (networkViz) networkViz.toggle(networkVizType !== undefined);
   });
 
   $STATE.subscribe('switchFilterUp', updateMaterial);
@@ -3682,8 +3803,6 @@ window.loadData = loadData;
 
 
 // ====== window.js ======
-const MIN_CANVAS_SIZE = 400;
-
 const mainContentHTML = `
   <div id="personasync">
     <div id="personasync-content">
@@ -3699,107 +3818,196 @@ const mainContentHTML = `
   </div>
 `;
 
+const DEFAULT_BUTTONS = [
+  { id: 'dummy_button', icon: '❔', label: 'No Actions', onClick: () => console.log('Default dummy button clicked') }
+];
+
 const UIComponents = {
-    buttons: {
-        render: (container, radialContainer, options = {}) => {
-            const buttonMap = new Map();
-            (options.buttons || []).forEach(btn => buttonMap.set(btn.id, btn));
+  buttons: {
+    render: (container, radialContainer, options = {}) => {
+      const allButtons = (options.buttons && options.buttons.length > 0) ? options.buttons : DEFAULT_BUTTONS;
+      // Show only buttons for the current menu level
+      const submenuContext = options._submenuContext || [];
+      let buttons;
 
-            const renderButton = (btn, buttonSize, centerX, centerY, spacing, layout, index, total) => {
-                const el = document.createElement('div');
-                el.className = 'radialbutton';
-                el.classList.add(index % 2 === 0 ? 'sway-cw' : 'sway-ccw');
-                el.id = `button_${btn.id}`;
+      if (submenuContext.length > 0) {
+        // We're in a submenu - show only buttons that belong to the current context
+        const currentContext = submenuContext[submenuContext.length - 1];
+        buttons = allButtons.filter(btn => btn.linkGroup === currentContext);
+      } else {
+        // We're at root level - show only buttons that don't belong to any submenu
+        buttons = allButtons.filter(btn => !btn.linkGroup);
+      }
 
-                switch (layout) {
-                    case 'line-top':
-                        el.style.left = `${centerX - ((total - 1) * spacing)/2 + index * spacing - buttonSize/2}px`;
-                        el.style.top = `${buttonSize * 0.5}px`;
-                        break;
-                    case 'line-bottom':
-                        el.style.left = `${centerX - ((total - 1) * spacing)/2 + index * spacing - buttonSize/2}px`;
-                        el.style.bottom = `${buttonSize * 0.5}px`;
-                        break;
-                    case 'line-left':
-                        el.style.left = `${buttonSize * 0.5}px`;
-                        el.style.top = `${centerY - ((total - 1) * spacing)/2 + index * spacing - buttonSize/2}px`;
-                        break;
-                    case 'line-right':
-                        el.style.right = `${buttonSize * 0.5}px`;
-                        el.style.top = `${centerY - ((total - 1) * spacing)/2 + index * spacing - buttonSize/2}px`;
-                        break;
-                    default: // arc
-                        const angle = (index / total) * Math.PI * 2;
-                        const radius = Math.min(centerX, centerY) * 0.8;
-                        el.style.left = `${centerX + Math.cos(angle) * radius - buttonSize/2}px`;
-                        el.style.top = `${centerY + Math.sin(angle) * radius - buttonSize/2}px`;
-                }
+      const buttonMap = new Map();
+      allButtons.forEach(btn => buttonMap.set(btn.id, btn));
+      const callbacks = options.execFunctions || [];
 
-                el.style.width = `${buttonSize}px`;
-                el.style.height = `${buttonSize}px`;
-                el.innerHTML = `<div class="radialicon">${btn.icon}</div><span class="radiallabel">${btn.label}</span>`;
+      radialContainer.innerHTML = '';
 
-                el.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    if (btn.linkTo && buttonMap.has(btn.linkTo)) {
-                        radialContainer.innerHTML = '';
-                        const linkedBtn = buttonMap.get(btn.linkTo);
-                        UIComponents.buttons.render(container, radialContainer, {
-                            ...options,
-                            buttons: [linkedBtn]
-                        });
-                    } else {
-                        btn.onClick?.(e);
-                    }
-                });
+      // Inject back button if we're in a submenu
+      if (submenuContext.length > 0) {
+        const backIcon = options.backIcon || '🔙';
+        const backButton = {
+          id: '__back__',
+          icon: backIcon,
+          label: 'Back',
+          onClick: () => {
+            const previous = submenuContext.slice(0, -1);
 
-                return el;
-            };
-
-            radialContainer.innerHTML = '';
-            const layout = options.buttonLayout || 'arc';
-            radialContainer.setAttribute('data-button-layout', layout);
-
-            const rect = container.getBoundingClientRect();
-            const buttonSize = Math.max(30, rect.width * (options.buttonSizePercent || 0.1));
-            const spacing = buttonSize * 1.2;
-            const centerX = rect.width / 2;
-            const centerY = rect.height / 2;
-
-            (options.buttons || []).forEach((btn, i, arr) => {
-                const el = renderButton(btn, buttonSize, centerX, centerY, spacing, layout, i, arr.length);
-                radialContainer.appendChild(el);
+            // Simply re-render with the previous context - let the existing filtering logic handle it
+            UIComponents.buttons.render(container, radialContainer, {
+              ...options,
+              _submenuContext: previous
             });
-        }
-    },
+          }
+        };
+        buttons.unshift(backButton);
+      }
 
-    prompt: {
-        render: (container, promptBox, options = {}) => {
-            const finalPosition = options.promptPosition === 'top' ? 'top' : 'bottom';
-            promptBox.setAttribute('data-prompt-position', finalPosition);
-            promptBox.style.top = finalPosition === 'top' ? '20px' : 'auto';
-            promptBox.style.bottom = finalPosition === 'bottom' ? '20px' : 'auto';
-            if (options.promptPlaceholder) {
-                promptBox.placeholder = options.promptPlaceholder;
-            }
+      const layout = options.buttonLayout || 'arc';
+      radialContainer.setAttribute('data-button-layout', layout);
+
+      const rect = container.getBoundingClientRect();
+      const buttonSize = Math.max(30, rect.width * (options.buttonSizePercent || 0.1));
+      const spacing = buttonSize * 1.2;
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      const renderButton = (btn, buttonSize, centerX, centerY, spacing, layout, index, total) => {
+        const el = document.createElement('div');
+        el.className = 'radialbutton';
+        el.classList.add(index % 2 === 0 ? 'sway-cw' : 'sway-ccw');
+        el.id = `button_${btn.id}`;
+
+        switch (layout) {
+          case 'line-top':
+            el.style.left = `${centerX - ((total - 1) * spacing) / 2 + index * spacing - buttonSize / 2}px`;
+            el.style.top = `${buttonSize * 0.5}px`;
+            break;
+          case 'line-bottom':
+            el.style.left = `${centerX - ((total - 1) * spacing) / 2 + index * spacing - buttonSize / 2}px`;
+            el.style.bottom = `${buttonSize * 0.5}px`;
+            break;
+          case 'line-left':
+            el.style.left = `${buttonSize * 0.5}px`;
+            el.style.top = `${centerY - ((total - 1) * spacing) / 2 + index * spacing - buttonSize / 2}px`;
+            break;
+          case 'line-right':
+            el.style.right = `${buttonSize * 0.5}px`;
+            el.style.top = `${centerY - ((total - 1) * spacing) / 2 + index * spacing - buttonSize / 2}px`;
+            break;
+          default: {
+            const angle = (index / total) * Math.PI * 2;
+            const radius = Math.min(centerX, centerY) * 0.8;
+            el.style.left = `${centerX + Math.cos(angle) * radius - buttonSize / 2}px`;
+            el.style.top = `${centerY + Math.sin(angle) * radius - buttonSize / 2}px`;
+          }
         }
+
+        el.style.width = `${buttonSize}px`;
+        el.style.height = `${buttonSize}px`;
+        el.innerHTML = `<div class="radialicon">${btn.icon}</div><span class="radiallabel">${btn.label}</span>`;
+
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (btn.linkTo && buttonMap.has(btn.linkTo)) {
+            // Navigate to submenu
+            UIComponents.buttons.render(container, radialContainer, {
+              ...options,
+              _submenuContext: [...(options._submenuContext || []), btn.linkTo]
+            });
+          } else if (btn.linkTo) {
+            // Navigate to submenu even if target doesn't exist as button (for linkGroup navigation)
+            UIComponents.buttons.render(container, radialContainer, {
+              ...options,
+              _submenuContext: [...(options._submenuContext || []), btn.linkTo]
+            });
+          } else if (typeof btn.callbackIndex === 'number' && callbacks[btn.callbackIndex]) {
+            callbacks[btn.callbackIndex](e);
+          } else {
+            btn.onClick?.(e);
+          }
+        });
+
+        return el;
+      };
+
+      buttons.forEach((btn, i) => {
+        const el = renderButton(btn, buttonSize, centerX, centerY, spacing, layout, i, buttons.length);
+        radialContainer.appendChild(el);
+      });
+    }
+  },
+
+  prompt: {
+    render: (container, promptBox, options = {}) => {
+      const finalPosition = options.promptPosition === 'top' ? 'top' : 'bottom';
+      promptBox.setAttribute('data-prompt-position', finalPosition);
+      promptBox.style.top = finalPosition === 'top' ? '20px' : 'auto';
+      promptBox.style.bottom = finalPosition === 'bottom' ? '20px' : 'auto';
+      if (options.promptPlaceholder) {
+        promptBox.placeholder = options.promptPlaceholder;
+      }
+    }
+  }
+};
+
+const setupResponseHandler = (contentDiv) => {
+    const responseContainer = contentDiv.querySelector('.response-container');
+
+    $STATE.subscribe('promptResponse', (response) => {
+        if (!response?.html) return;
+
+        const responseElement = document.createElement('div');
+        responseElement.className = 'response-item';
+        responseElement.innerHTML = response.html;
+        responseContainer.prepend(responseElement);
+
+        // Scroll to show new content
+        setTimeout(() => {
+            // responseContainer.scrollTop = responseContainer.scrollHeight;
+            responseContainer.scrollTop = 0;
+        }, 50);
+    });
+};
+
+const renderViewWindow = async (options = {}) => {
+    document.body.insertAdjacentHTML('afterbegin', mainContentHTML);
+    try {
+        const window = await setupWindow(options);
+        return window;
+    } catch(err) {
+        console.error("Error initializing window:", err);
     }
 };
 
 const setupWindow = async (options) => {
+    let firstClick = options.storageData?.firstClicked || false;
+
+    const inputManager = createInputManager(window);
     const container = document.getElementById('personasync');
+    const contentDiv = document.getElementById('personasync-content');
+    const resizeHandle = document.getElementById('resizeHandle');
+    const minimizeHandle = document.getElementById('minimizeHandle');
     const canvas = document.getElementById('personawindow');
     const radialContainer = document.getElementById('radialui');
     const promptBox = document.getElementById('promptBox');
-    const resizeHandle = document.getElementById('resizeHandle');
+    const wipBanner = document.getElementById('wipBanner');
+    const clickMeSign = document.getElementById('clickMeSign');
+    if (firstClick) clickMeSign.style.display = 'none';
 
-    canvas.width = Math.max(container.clientWidth, MIN_CANVAS_SIZE);
-    canvas.height = Math.max(container.clientHeight, MIN_CANVAS_SIZE);
+    // Initialize canvas
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
 
+    // Initialize UI components
     UIComponents.buttons.render(container, radialContainer, {
-        buttons: options.buttons,
-        buttonLayout: options.buttonLayout,
-        buttonSizePercent: options.buttonSizePercent
+      buttons: options.buttons,
+      execFunctions: options.execFunctions,
+      buttonLayout: options.buttonLayout,
+      buttonSizePercent: options.buttonSizePercent,
+      backIcon: options.backIcon
     });
 
     UIComponents.prompt.render(container, promptBox, {
@@ -3807,45 +4015,134 @@ const setupWindow = async (options) => {
         promptPlaceholder: options.promptPlaceholder
     });
 
-    let isResizing = false, startX, startY, startWidth, startHeight;
+    // Initialize response handler
+    setupResponseHandler(contentDiv);
 
-    const inputManager = createInputManager(window);
-    inputManager.on('click', (data) => {
-        if (data.event.target === resizeHandle) {
-            isResizing = true;
-            startX = data.currentPosition.x;
-            startY = data.currentPosition.y;
-            startWidth = container.clientWidth;
-            startHeight = container.clientHeight;
-            data.event.preventDefault();
+    // Set up prompt box handling
+    promptBox.addEventListener('keyup', (event) => {
+        if (event.key === 'Enter' && promptBox.value.trim()) {
+            const data = { mode: 'baked', prompt: promptBox.value, ENV: options.ENV };
+            $STATE.set('callAncestors', data);
+            promptBox.value = '';
         }
     });
-    inputManager.on('move', (data) => {
+
+    // Resize functionality (width and height)
+    let isResizing = false, minimize = false;
+    let startX, startY, startWidth, startHeight;
+
+    const handleDragStart = (data) => {
+        if (data.event.target === resizeHandle) {
+          isResizing = true;
+          startX = data.currentPosition.x;
+          startY = data.currentPosition.y;
+          startWidth = container.clientWidth;
+          startHeight = container.clientHeight;
+          data.event.preventDefault();
+        }
+        else if (data.event.target === minimizeHandle) {
+          minimize = true;
+        }
+    };
+
+    const handleMove = (data) => {
         if (!isResizing) return;
+
         const dx = data.currentPosition.x - startX;
         const dy = data.currentPosition.y - startY;
 
-        const newWidth = Math.max(MIN_CANVAS_SIZE, Math.min(window.innerWidth - 50, startWidth - dx));
-        const newHeight = Math.max(MIN_CANVAS_SIZE, Math.min(window.innerHeight - 50, startHeight - dy));
+        const newWidth = Math.max(200, Math.min(window.innerWidth - 50, startWidth - dx));
+        const newHeight = Math.max(200, Math.min(window.innerHeight - 50, startHeight - dy));
 
         container.style.width = `${newWidth}px`;
         container.style.height = `${newHeight}px`;
         canvas.width = newWidth;
         canvas.height = newHeight;
 
-        UIComponents.buttons.render(container, radialContainer, {
+        if (resizeHandle.style.display === 'block') {
+          UIComponents.buttons.render(container, radialContainer, {
             buttons: options.buttons,
-            buttonLayout: options.buttonLayout
-        });
-    });
-    inputManager.on('idle', () => isResizing = false);
+            execFunctions: options.execFunctions,
+            buttonLayout: options.buttonLayout,
+            buttonSizePercent: options.buttonSizePercent,
+            backIcon: options.backIcon
+          });
+        }
+    };
 
-    return { container, canvas, inputManager, radialContainer, promptBox };
-};
+    const handleUp = () => {
+      if (isResizing) {
+        isResizing = false;
+        $STATE.set('containerNeedsUpdate', true);
+      }
+      else if(minimize) {
+        console.log('minimize the visualization!!!');
+      }
+    };
 
-const renderViewWindow = async (options = {}) => {
-    document.body.insertAdjacentHTML('afterbegin', mainContentHTML);
-    return await setupWindow(options);
+    // Set up input manager handlers
+    inputManager.on('click', handleDragStart);
+    inputManager.on('move', handleMove);
+    inputManager.on('idle', handleUp);
+    inputManager.on('touchStart', handleDragStart);
+    inputManager.on('touchMove', handleMove);
+    inputManager.on('touchEnd', handleUp);
+
+    // Toggle UI visibility
+    const toggleUI = () => {
+        const isVisible = resizeHandle.style.display !== 'block';
+        radialContainer.style.display = isVisible ? 'block' : 'none';
+        resizeHandle.style.display = isVisible ? 'block' : 'none';
+        minimizeHandle.style.display = isVisible ? 'block' : 'none';
+        promptBox.style.display = isVisible ? 'block' : 'none';
+        container.style.border = isVisible ? '2px solid #000' : 'none';
+
+        if (isVisible) {
+          UIComponents.buttons.render(container, radialContainer, {
+            buttons: options.buttons,
+            execFunctions: options.execFunctions,
+            buttonLayout: options.buttonLayout,
+            buttonSizePercent: options.buttonSizePercent,
+            backIcon: options.backIcon
+          });
+        }
+
+        if (!firstClick) {
+          firstClick = true;
+          clickMeSign.style.display = 'none';
+          saveData({
+            firstClicked: true
+          })
+        }
+    };
+
+    $STATE.subscribe('toggleUI', toggleUI);
+
+    let brainVizState = undefined;
+    $STATE.subscribe('toggleBrainViz', (state) => {
+      brainVizState = brainVizState !== state ? state : undefined;
+      wipBanner.style.display = brainVizState !== undefined ? 'flex' : 'none';
+    })
+
+    return {
+        container,
+        canvas,
+        inputManager,
+        radialContainer,
+        promptBox,
+        contentDiv,
+        toggleUI,
+        renderButtons: (buttonOptions) => UIComponents.buttons.render(
+            container,
+            radialContainer,
+            { ...options, ...buttonOptions }
+        ),
+        resetContainer: () => {
+            const responseContainer = contentDiv.querySelector('.response-container');
+            responseContainer.innerHTML = '';
+            responseContainer.scrollTop = 0;
+        }
+    };
 };
 
 window.renderViewWindow = renderViewWindow;
@@ -3879,30 +4176,72 @@ const startPersonaMotion = async (arguments) => {
     const initialFunctionalState = {
       toggleBrainViz: false
     };
+    // const { container, canvas, inputManager } = await renderViewWindow({
+    //   storageData,
+    //   brainInstance,
+    //   buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
+    //   promptPosition: 'top', // or 'bottom'
+    //   buttonSizePercent: 0.12, // relative to container size
+    //   execFunctions: [
+    //     () => {
+    //       $STATE.set('toggleBrainViz', !initialFunctionalState.toggleBrainViz);
+    //       initialFunctionalState.toggleBrainViz = !initialFunctionalState.toggleBrainViz;
+    //     },
+    //     () => {
+    //       $STATE.set('applyBrainFeedback', 1);
+    //     },
+    //     () => {
+    //       $STATE.set('applyBrainFeedback', -1);
+    //     },
+    //     () => {
+    //       const filterStyle = UTILITIES.randomInt(1, 16);
+    //       $STATE.set('switchFilterUp', filterStyle);
+    //     }
+    //   ],
+    //   ENV
+    // });
+    const execFunctions = [
+      () => {
+        $STATE.set('toggleBrainViz', 'bulb');
+      },
+      () => {
+        $STATE.set('toggleBrainViz', 'galaxy');
+      },
+      () => {
+        $STATE.set('applyBrainFeedback', 1);
+      },
+      () => {
+        $STATE.set('applyBrainFeedback', -1);
+      },
+      () => {
+        const style = UTILITIES.randomInt(1, 16);
+        $STATE.set('switchFilterUp', style);
+      }
+    ];
+
+    const buttons = [
+      { id: 'brain_btn', icon: '🧠', label: 'brain', linkTo: 'brains' },
+      { id: 'keep_this_btn', icon: '🔥', label: 'keep_this', callbackIndex: 2 },
+      { id: 'no_good_btn', icon: '😭', label: 'no_good', callbackIndex: 3 },
+      { id: 'filter_me', icon: '🕶️', label: 'filter_me', callbackIndex: 4 },
+
+      { id: 'brain_first', icon: '💭', label: 'first_brain', linkGroup: 'brains', callbackIndex: 0 },
+      { id: 'brain_second', icon: '🌌', label: 'second_brain', linkGroup: 'brains', callbackIndex: 1 },
+      { id: 'brain_third', icon: '🌐', label: 'third_brain', linkGroup: 'brains', linkTo: 'brains_remote' },
+
+      { id: 'brain_remote_gemini', icon: '💭', label: 'GEMINI', linkGroup: 'brains_remote', onClick: () => console.log('GEMINI') },
+      { id: 'brain_remote_openai', icon: '🎯', label: 'OPENAI', linkGroup: 'brains_remote', onClick: () => console.log('OPENAI') },
+    ];
+
     const { container, canvas, inputManager } = await renderViewWindow({
-      storageData,
-      brainInstance,
-      buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
-      promptPosition: 'top', // or 'bottom'
-      buttonSizePercent: 0.12, // relative to container size
-      execFunctions: [
-        () => {
-          $STATE.set('toggleBrainViz', !initialFunctionalState.toggleBrainViz);
-          initialFunctionalState.toggleBrainViz = !initialFunctionalState.toggleBrainViz;
-        },
-        () => {
-          $STATE.set('applyBrainFeedback', 1);
-        },
-        () => {
-          $STATE.set('applyBrainFeedback', -1);
-        },
-        () => {
-          const filterStyle = UTILITIES.randomInt(1, 16);
-          $STATE.set('switchFilterUp', filterStyle);
-        }
-      ],
+      execFunctions,
+      buttons,
+      buttonLayout: 'line-right',
+      promptPosition: 'top',
+      buttonSizePercent: 0.12,
       ENV
     });
+
     const newWorld = await world({ storageData, brainInstance, canvas, modelURL, ENV });
 
     $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {

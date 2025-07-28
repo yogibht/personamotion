@@ -3,7 +3,7 @@ const mainContentHTML = `
     <div id="personasync-content">
       <div id="resizeHandle" title="Resize Persona Window"></div>
       <div id="minimizeHandle" title="Minimize Persona"></div>
-      <div class="response-container"></div>
+      <div id="response-container"></div>
       <canvas id="personawindow"></canvas>
       <div id="radialui"></div>
       <input type="text" id="promptBox" placeholder="Ask me something..." />
@@ -149,22 +149,46 @@ const UIComponents = {
 };
 
 const setupResponseHandler = (contentDiv) => {
-    const responseContainer = contentDiv.querySelector('.response-container');
+  const responseContainer = contentDiv.querySelector('#response-container');
 
-    $STATE.subscribe('promptResponse', (response) => {
-        if (!response?.html) return;
+  // We will reuse the same animated element
+  let fadeDiv = null;
 
-        const responseElement = document.createElement('div');
-        responseElement.className = 'response-item';
-        responseElement.innerHTML = response.html;
-        responseContainer.prepend(responseElement);
+  $STATE.subscribe('promptResponse', (response) => {
+    if (!response?.html) return;
 
-        // Scroll to show new content
-        setTimeout(() => {
-            // responseContainer.scrollTop = responseContainer.scrollHeight;
-            responseContainer.scrollTop = 0;
-        }, 50);
+    // 1) If a fade is already in progress, kill it and clear old items
+    if (fadeDiv) {
+      fadeDiv.remove();
+      fadeDiv = null;
+    }
+    responseContainer.innerHTML = '';
+
+    // 2) Create the new response item inside the animated wrapper
+    const inner = document.createElement('div');
+    inner.className = 'response-item';
+    inner.innerHTML = response.html;
+
+    fadeDiv = document.createElement('div');
+    fadeDiv.style.cssText = `
+      transition: opacity 20s linear;
+      opacity: 1;
+    `;
+    fadeDiv.appendChild(inner);
+    responseContainer.appendChild(fadeDiv);
+
+    // 3) Force reflow, then start the fade
+    fadeDiv.offsetHeight;           // force reflow
+    fadeDiv.style.opacity = '0';
+
+    // 4) When fade finishes, remove the wrapper
+    fadeDiv.addEventListener('transitionend', () => {
+      if (fadeDiv) {
+        fadeDiv.remove();
+        fadeDiv = null;
+      }
     });
+  });
 };
 
 const renderViewWindow = async (options = {}) => {
