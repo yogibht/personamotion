@@ -448,17 +448,7 @@ const callAncestors = async (data) => {
     }
 
     const responseContent = `
-      <div style="background-color: #2c3e50;
-                   color: #ecf0f1;
-                   font-family: 'Arial', sans-serif;
-                   padding: 2em;
-                   border-radius: 12px;
-                   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                   text-align: center;
-                   max-width: 400px;
-                   margin: 2em auto;
-                   border: 2px solid #3498db;
-                   transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;">
+      <div class="personamotion-responseItem">
         <h2 style="margin-top: 0; color: #3498db; text-transform: uppercase; letter-spacing: 2px;">
         Prompt: ${data.prompt}
         </h2>
@@ -480,14 +470,14 @@ const callAncestors = async (data) => {
       data: null,
       html: `
         <div style="background-color: #e74c3c;
-                     color: #ecf0f1;
-                     font-family: 'Arial', sans-serif;
-                     padding: 2em;
-                     border-radius: 12px;
-                     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                     text-align: center;
-                     max-width: 400px;
-                     margin: 2em auto;">
+                    color: #ecf0f1;
+                    font-family: 'Arial', sans-serif;
+                    padding: 2em;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                    text-align: center;
+                    max-width: 400px;
+                    margin: 2em auto;">
           <h2 style="margin-top: 0; color: #fff;">Error!</h2>
           <p style="font-size: 1.1em;">Failed to get a response from the AI. Please try again.</p>
           <p style="font-size: 0.9em; opacity: 0.8;">Details: ${err.message}</p>

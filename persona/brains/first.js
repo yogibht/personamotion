@@ -119,64 +119,69 @@ const RLHFBrain = () => {
     generateGraphData() {
       const json = net.toJSON();
       const graph = { nodes: [], links: [] };
-      const layerNodeMap = []; // To track node IDs per layer
+      const nodeIdMap = {}; // {layerIndex: {neuronIndex: graphNodeId}}
 
-      // 1. Create nodes for each layer
+      // 1. Create all nodes with direct indexing
       for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
         const layer = json.layers[layerIdx];
-        layerNodeMap[layerIdx] = [];
+        nodeIdMap[layerIdx] = {};
 
-        // Get all neuron indices in this layer
+        // Get sorted neuron indices once
         const neuronIndices = Object.keys(layer)
-          .filter(key => !isNaN(key)) // Only numeric keys (neuron indices)
+          .filter(k => !isNaN(k))
           .map(Number)
-          .sort((a, b) => a - b);
+          .sort((a,b) => a-b);
 
-        for (let i = 0; i < neuronIndices.length; i++) {
-          const neuronIdx = neuronIndices[i];
+        for (const neuronIdx of neuronIndices) {
           const neuron = layer[neuronIdx];
-          const nodeId = graph.nodes.length;
+          const id = graph.nodes.length;
 
           graph.nodes.push({
-            id: nodeId,
+            id,
             layer: layerIdx,
             neuron: neuronIdx,
             bias: neuron.bias,
             activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
           });
 
-          layerNodeMap[layerIdx][neuronIdx] = nodeId; // Store mapping
+          nodeIdMap[layerIdx][neuronIdx] = id;
         }
       }
 
-      // 2. Create links between layers
+      // 2. Create links with optimized weight processing
       for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
-        const currentLayer = json.layers[layerIdx];
-        const prevLayer = json.layers[layerIdx - 1];
+        const layer = json.layers[layerIdx];
+        const prevLayerSize = Object.keys(json.layers[layerIdx-1]).filter(k => !isNaN(k)).length;
 
-        // Get all neuron indices in current layer
-        const currentNeuronIndices = Object.keys(currentLayer)
-          .filter(key => !isNaN(key))
-          .map(Number);
+        // Process neurons in order
+        const neuronIndices = Object.keys(layer)
+          .filter(k => !isNaN(k))
+          .map(Number)
+          .sort((a,b) => a-b);
 
-        // Get all neuron indices in previous layer
-        const prevNeuronIndices = Object.keys(prevLayer)
-          .filter(key => !isNaN(key))
-          .map(Number);
+        for (const neuronIdx of neuronIndices) {
+          const neuron = layer[neuronIdx];
+          const targetId = nodeIdMap[layerIdx][neuronIdx];
 
-        for (let i = 0; i < currentNeuronIndices.length; i++) {
-          const currentNeuronIdx = currentNeuronIndices[i];
-          const currentNeuron = currentLayer[currentNeuronIdx];
-
-          for (let j = 0; j < prevNeuronIndices.length; j++) {
-            const prevNeuronIdx = prevNeuronIndices[j];
-
-            // Only create link if weight exists for this connection
-            if (currentNeuron.weights && currentNeuron.weights[prevNeuronIdx] !== undefined) {
+          // Fast path for dense weight matrices
+          if (neuron.weights && Object.keys(neuron.weights).length === prevLayerSize) {
+            for (let inputIdx = 0; inputIdx < prevLayerSize; inputIdx++) {
+              if (neuron.weights[inputIdx] !== undefined) {
+                graph.links.push({
+                  source: nodeIdMap[layerIdx-1][inputIdx],
+                  target: targetId,
+                  weight: neuron.weights[inputIdx]
+                });
+              }
+            }
+          }
+          // Slow path for sparse connections
+          else if (neuron.weights) {
+            for (const inputIdx of Object.keys(neuron.weights).map(Number)) {
               graph.links.push({
-                source: layerNodeMap[layerIdx-1][prevNeuronIdx],
-                target: layerNodeMap[layerIdx][currentNeuronIdx],
-                weight: currentNeuron.weights[prevNeuronIdx]
+                source: nodeIdMap[layerIdx-1][inputIdx],
+                target: targetId,
+                weight: neuron.weights[inputIdx]
               });
             }
           }

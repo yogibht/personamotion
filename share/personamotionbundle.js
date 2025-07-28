@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T06:50:44.426Z
+// Combined at 2025-07-28T07:25:47.201Z
 // 16 files
 
 
@@ -692,64 +692,69 @@ const RLHFBrain = () => {
     generateGraphData() {
       const json = net.toJSON();
       const graph = { nodes: [], links: [] };
-      const layerNodeMap = []; // To track node IDs per layer
+      const nodeIdMap = {}; // {layerIndex: {neuronIndex: graphNodeId}}
 
-      // 1. Create nodes for each layer
+      // 1. Create all nodes with direct indexing
       for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
         const layer = json.layers[layerIdx];
-        layerNodeMap[layerIdx] = [];
+        nodeIdMap[layerIdx] = {};
 
-        // Get all neuron indices in this layer
+        // Get sorted neuron indices once
         const neuronIndices = Object.keys(layer)
-          .filter(key => !isNaN(key)) // Only numeric keys (neuron indices)
+          .filter(k => !isNaN(k))
           .map(Number)
-          .sort((a, b) => a - b);
+          .sort((a,b) => a-b);
 
-        for (let i = 0; i < neuronIndices.length; i++) {
-          const neuronIdx = neuronIndices[i];
+        for (const neuronIdx of neuronIndices) {
           const neuron = layer[neuronIdx];
-          const nodeId = graph.nodes.length;
+          const id = graph.nodes.length;
 
           graph.nodes.push({
-            id: nodeId,
+            id,
             layer: layerIdx,
             neuron: neuronIdx,
             bias: neuron.bias,
             activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
           });
 
-          layerNodeMap[layerIdx][neuronIdx] = nodeId; // Store mapping
+          nodeIdMap[layerIdx][neuronIdx] = id;
         }
       }
 
-      // 2. Create links between layers
+      // 2. Create links with optimized weight processing
       for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
-        const currentLayer = json.layers[layerIdx];
-        const prevLayer = json.layers[layerIdx - 1];
+        const layer = json.layers[layerIdx];
+        const prevLayerSize = Object.keys(json.layers[layerIdx-1]).filter(k => !isNaN(k)).length;
 
-        // Get all neuron indices in current layer
-        const currentNeuronIndices = Object.keys(currentLayer)
-          .filter(key => !isNaN(key))
-          .map(Number);
+        // Process neurons in order
+        const neuronIndices = Object.keys(layer)
+          .filter(k => !isNaN(k))
+          .map(Number)
+          .sort((a,b) => a-b);
 
-        // Get all neuron indices in previous layer
-        const prevNeuronIndices = Object.keys(prevLayer)
-          .filter(key => !isNaN(key))
-          .map(Number);
+        for (const neuronIdx of neuronIndices) {
+          const neuron = layer[neuronIdx];
+          const targetId = nodeIdMap[layerIdx][neuronIdx];
 
-        for (let i = 0; i < currentNeuronIndices.length; i++) {
-          const currentNeuronIdx = currentNeuronIndices[i];
-          const currentNeuron = currentLayer[currentNeuronIdx];
-
-          for (let j = 0; j < prevNeuronIndices.length; j++) {
-            const prevNeuronIdx = prevNeuronIndices[j];
-
-            // Only create link if weight exists for this connection
-            if (currentNeuron.weights && currentNeuron.weights[prevNeuronIdx] !== undefined) {
+          // Fast path for dense weight matrices
+          if (neuron.weights && Object.keys(neuron.weights).length === prevLayerSize) {
+            for (let inputIdx = 0; inputIdx < prevLayerSize; inputIdx++) {
+              if (neuron.weights[inputIdx] !== undefined) {
+                graph.links.push({
+                  source: nodeIdMap[layerIdx-1][inputIdx],
+                  target: targetId,
+                  weight: neuron.weights[inputIdx]
+                });
+              }
+            }
+          }
+          // Slow path for sparse connections
+          else if (neuron.weights) {
+            for (const inputIdx of Object.keys(neuron.weights).map(Number)) {
               graph.links.push({
-                source: layerNodeMap[layerIdx-1][prevNeuronIdx],
-                target: layerNodeMap[layerIdx][currentNeuronIdx],
-                weight: currentNeuron.weights[prevNeuronIdx]
+                source: nodeIdMap[layerIdx-1][inputIdx],
+                target: targetId,
+                weight: neuron.weights[inputIdx]
               });
             }
           }
@@ -1246,17 +1251,7 @@ const callAncestors = async (data) => {
     }
 
     const responseContent = `
-      <div style="background-color: #2c3e50;
-                   color: #ecf0f1;
-                   font-family: 'Arial', sans-serif;
-                   padding: 2em;
-                   border-radius: 12px;
-                   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                   text-align: center;
-                   max-width: 400px;
-                   margin: 2em auto;
-                   border: 2px solid #3498db;
-                   transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;">
+      <div class="personamotion-responseItem">
         <h2 style="margin-top: 0; color: #3498db; text-transform: uppercase; letter-spacing: 2px;">
         Prompt: ${data.prompt}
         </h2>
@@ -1278,14 +1273,14 @@ const callAncestors = async (data) => {
       data: null,
       html: `
         <div style="background-color: #e74c3c;
-                     color: #ecf0f1;
-                     font-family: 'Arial', sans-serif;
-                     padding: 2em;
-                     border-radius: 12px;
-                     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                     text-align: center;
-                     max-width: 400px;
-                     margin: 2em auto;">
+                    color: #ecf0f1;
+                    font-family: 'Arial', sans-serif;
+                    padding: 2em;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                    text-align: center;
+                    max-width: 400px;
+                    margin: 2em auto;">
           <h2 style="margin-top: 0; color: #fff;">Error!</h2>
           <p style="font-size: 1.1em;">Failed to get a response from the AI. Please try again.</p>
           <p style="font-size: 0.9em; opacity: 0.8;">Details: ${err.message}</p>
@@ -2611,7 +2606,6 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
 };
 
 const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
-  console.log(initialGraph);
   const MAX_PARTICLES = 8192;
 
   const group = new THREE.Group();
@@ -3985,45 +3979,29 @@ const UIComponents = {
 
 const setupResponseHandler = (contentDiv) => {
   const responseContainer = contentDiv.querySelector('#personamotion-responseContainer');
-
-  // We will reuse the same animated element
-  let fadeDiv = null;
+  const VISIBLE_DURATION = 7000; // 7 seconds total visibility
+  const FADE_DURATION = 1000; // 1 second fade out
 
   $STATE.subscribe('promptResponse', (response) => {
     if (!response?.html) return;
 
-    // 1) If a fade is already in progress, kill it and clear old items
-    if (fadeDiv) {
-      fadeDiv.remove();
-      fadeDiv = null;
-    }
-    responseContainer.innerHTML = '';
+    // Create new response element
+    // const responseItem = document.createElement('div');
+    // responseItem.className = 'personamotion-responseItem';
+    // responseItem.innerHTML = response.html;
+    // responseContainer.appendChild(responseItem);
 
-    // 2) Create the new response item inside the animated wrapper
-    const inner = document.createElement('div');
-    inner.className = 'personamotion-responseItem';
-    inner.innerHTML = response.html;
+    responseContainer.innerHTML = response.html;
 
-    fadeDiv = document.createElement('div');
-    fadeDiv.style.cssText = `
-      transition: opacity 20s linear;
-      opacity: 1;
-    `;
-    fadeDiv.appendChild(inner);
-    responseContainer.appendChild(fadeDiv);
-
-    // 3) Force reflow, then start the fade
-    fadeDiv.offsetHeight;           // force reflow
-    fadeDiv.style.opacity = '0';
-
-    // 4) When fade finishes, remove the wrapper
-    fadeDiv.addEventListener('transitionend', () => {
-      if (fadeDiv) {
-        fadeDiv.remove();
-        fadeDiv = null;
-      }
-    });
+    // Scroll to show new content
+    responseContainer.scrollTop = responseContainer.scrollHeight;
   });
+
+  // Cleanup function
+  return () => {
+    document.head.removeChild(style);
+    responseContainer.innerHTML = '';
+  };
 };
 
 const renderViewWindow = async (options = {}) => {

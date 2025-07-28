@@ -150,45 +150,29 @@ const UIComponents = {
 
 const setupResponseHandler = (contentDiv) => {
   const responseContainer = contentDiv.querySelector('#personamotion-responseContainer');
-
-  // We will reuse the same animated element
-  let fadeDiv = null;
+  const VISIBLE_DURATION = 7000; // 7 seconds total visibility
+  const FADE_DURATION = 1000; // 1 second fade out
 
   $STATE.subscribe('promptResponse', (response) => {
     if (!response?.html) return;
 
-    // 1) If a fade is already in progress, kill it and clear old items
-    if (fadeDiv) {
-      fadeDiv.remove();
-      fadeDiv = null;
-    }
-    responseContainer.innerHTML = '';
+    // Create new response element
+    // const responseItem = document.createElement('div');
+    // responseItem.className = 'personamotion-responseItem';
+    // responseItem.innerHTML = response.html;
+    // responseContainer.appendChild(responseItem);
 
-    // 2) Create the new response item inside the animated wrapper
-    const inner = document.createElement('div');
-    inner.className = 'personamotion-responseItem';
-    inner.innerHTML = response.html;
+    responseContainer.innerHTML = response.html;
 
-    fadeDiv = document.createElement('div');
-    fadeDiv.style.cssText = `
-      transition: opacity 20s linear;
-      opacity: 1;
-    `;
-    fadeDiv.appendChild(inner);
-    responseContainer.appendChild(fadeDiv);
-
-    // 3) Force reflow, then start the fade
-    fadeDiv.offsetHeight;           // force reflow
-    fadeDiv.style.opacity = '0';
-
-    // 4) When fade finishes, remove the wrapper
-    fadeDiv.addEventListener('transitionend', () => {
-      if (fadeDiv) {
-        fadeDiv.remove();
-        fadeDiv = null;
-      }
-    });
+    // Scroll to show new content
+    responseContainer.scrollTop = responseContainer.scrollHeight;
   });
+
+  // Cleanup function
+  return () => {
+    document.head.removeChild(style);
+    responseContainer.innerHTML = '';
+  };
 };
 
 const renderViewWindow = async (options = {}) => {
