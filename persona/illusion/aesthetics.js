@@ -1158,8 +1158,6 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
       if (child.geometry) child.geometry.dispose();
       if (child.material) child.material.dispose();
     }
-
-    console.log('LivingBrainViz disposed');
   }
 
   updateGraph(initialGraph || { nodes: [], links: [] });
@@ -1527,8 +1525,6 @@ const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
     distances.fill(0);
     neuralInfluences.fill(0);
     armIndices.fill(0);
-
-    console.log('GalaxyBrainViz disposed');
   }
 
   // Initialize

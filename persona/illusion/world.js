@@ -252,9 +252,9 @@ const world = async (props) => {
     return { tts, voiceOptions };
   };
 
-  const processAndAnimateLLMResponse = async (response) => {
-    const { tts, voiceOptions } = await initializeTTS();
+  const { tts, voiceOptions } = await initializeTTS();
 
+  const processAndAnimateLLMResponse = async (response) => {
     const container = document.querySelector('.response-container');
     if (container && response.html) {
       container.innerHTML = response.html;

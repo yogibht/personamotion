@@ -312,8 +312,11 @@ const setupWindow = async (options) => {
     };
 
     $STATE.subscribe('toggleUI', toggleUI);
+
+    let brainVizState = undefined;
     $STATE.subscribe('toggleBrainViz', (state) => {
-      wipBanner.style.display = state !== undefined ? 'flex' : 'none';
+      brainVizState = brainVizState !== state ? state : undefined;
+      wipBanner.style.display = brainVizState !== undefined ? 'flex' : 'none';
     })
 
     return {
