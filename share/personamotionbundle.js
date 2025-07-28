@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T04:08:08.084Z
+// Combined at 2025-07-28T06:50:44.426Z
 // 16 files
 
 
@@ -690,40 +690,68 @@ const RLHFBrain = () => {
     },
 
     generateGraphData() {
-      const json = net.toJSON(); // Always get fresh weights
-      const layers = json.layers;
+      const json = net.toJSON();
       const graph = { nodes: [], links: [] };
-      const nodeIndexMap = [];
+      const layerNodeMap = []; // To track node IDs per layer
 
-      // Build nodes
-      layers.forEach((layer, layerIdx) => {
-        const size = layer.biases?.length || 0;
-        const layerMap = {};
-        for (let neuronIdx = 0; neuronIdx < size; neuronIdx++) {
-          const id = `L${layerIdx}N${neuronIdx}`;
+      // 1. Create nodes for each layer
+      for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
+        const layer = json.layers[layerIdx];
+        layerNodeMap[layerIdx] = [];
+
+        // Get all neuron indices in this layer
+        const neuronIndices = Object.keys(layer)
+          .filter(key => !isNaN(key)) // Only numeric keys (neuron indices)
+          .map(Number)
+          .sort((a, b) => a - b);
+
+        for (let i = 0; i < neuronIndices.length; i++) {
+          const neuronIdx = neuronIndices[i];
+          const neuron = layer[neuronIdx];
+          const nodeId = graph.nodes.length;
+
           graph.nodes.push({
-            id,
+            id: nodeId,
             layer: layerIdx,
             neuron: neuronIdx,
-            bias: layer.biases?.[neuronIdx] ?? 0,
-            activation: json.activation || 'relu'
+            bias: neuron.bias,
+            activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
           });
-          layerMap[neuronIdx] = id;
-        }
-        nodeIndexMap[layerIdx] = layerMap;
-      });
 
-      // Build links with current weights
-      for (let layerIdx = 1; layerIdx < layers.length; layerIdx++) {
-        const weights = layers[layerIdx].weights;
-        if (!weights) continue;
-        for (let i = 0; i < weights.length; i++) {
-          for (let j = 0; j < weights[i].length; j++) {
-            graph.links.push({
-              source: nodeIndexMap[layerIdx - 1][j],
-              target: nodeIndexMap[layerIdx][i],
-              weight: weights[i][j] // ✅ This will be updated
-            });
+          layerNodeMap[layerIdx][neuronIdx] = nodeId; // Store mapping
+        }
+      }
+
+      // 2. Create links between layers
+      for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
+        const currentLayer = json.layers[layerIdx];
+        const prevLayer = json.layers[layerIdx - 1];
+
+        // Get all neuron indices in current layer
+        const currentNeuronIndices = Object.keys(currentLayer)
+          .filter(key => !isNaN(key))
+          .map(Number);
+
+        // Get all neuron indices in previous layer
+        const prevNeuronIndices = Object.keys(prevLayer)
+          .filter(key => !isNaN(key))
+          .map(Number);
+
+        for (let i = 0; i < currentNeuronIndices.length; i++) {
+          const currentNeuronIdx = currentNeuronIndices[i];
+          const currentNeuron = currentLayer[currentNeuronIdx];
+
+          for (let j = 0; j < prevNeuronIndices.length; j++) {
+            const prevNeuronIdx = prevNeuronIndices[j];
+
+            // Only create link if weight exists for this connection
+            if (currentNeuron.weights && currentNeuron.weights[prevNeuronIdx] !== undefined) {
+              graph.links.push({
+                source: layerNodeMap[layerIdx-1][prevNeuronIdx],
+                target: layerNodeMap[layerIdx][currentNeuronIdx],
+                weight: currentNeuron.weights[prevNeuronIdx]
+              });
+            }
           }
         }
       }
@@ -2583,6 +2611,7 @@ const createLivingBrainViz = (scene, initialGraph, props) => {
 };
 
 const createGalaxyBrainViz = (scene, initialGraph, props = {}) => {
+  console.log(initialGraph);
   const MAX_PARTICLES = 8192;
 
   const group = new THREE.Group();
@@ -3115,16 +3144,17 @@ const world = async (props) => {
     else {
       networkVizType = state;
     }
-    if (networkViz !== undefined) networkViz.dispose();
-    networkViz = undefined;
-    console.log(networkVizType);
-    if (networkVizType === 'bulb' || networkVizType === undefined) {
+    if (networkViz && networkVizType === 'bulb') {
+      networkViz.dispose();
+      networkViz = undefined;
       networkViz = createLivingBrainViz(scene, brainData, {
         width: canvas.width,
         height: canvas.height,
       });
     }
-    else if (networkVizType !== undefined){
+    else if (networkViz && networkVizType === 'galaxy'){
+      networkViz.dispose();
+      networkViz = undefined;
       networkViz = createGalaxyBrainViz(scene, brainData, {
         particleSize: 2.0,
         brightness: 2.0,
@@ -3133,7 +3163,15 @@ const world = async (props) => {
         numArms: 5
       });
     }
-    if (networkViz) networkViz.toggle(networkVizType !== undefined);
+    else{
+      if(networkViz) networkViz.dispose();
+      networkViz = undefined;
+      networkViz = createLivingBrainViz(scene, brainData, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    networkViz.toggle(networkVizType !== undefined);
   }
 
   let anim, animationController;
@@ -3206,7 +3244,7 @@ const world = async (props) => {
         animationController.update(threejs.delta);
 
         if (networkVizType !== undefined) {
-          const brainData = brainInstance.generateGraphData();
+          brainData = brainInstance.generateGraphData();
           // console.log(networkViz.getPerformanceInfo());
           networkViz.updateGraph(brainData);
           networkViz.animate(camera, performance.now());
@@ -3260,6 +3298,7 @@ const world = async (props) => {
     );
     postMaterial.needsUpdate = true;
 
+    renderer.clear();
     renderer.render(scene, camera);
   };
 

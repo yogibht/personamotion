@@ -75,15 +75,17 @@ const world = async (props) => {
     else {
       networkVizType = state;
     }
-    if (networkViz !== undefined) networkViz.dispose();
-    networkViz = undefined;
-    if (networkVizType === 'bulb' || networkVizType === undefined) {
+    if (networkViz && networkVizType === 'bulb') {
+      networkViz.dispose();
+      networkViz = undefined;
       networkViz = createLivingBrainViz(scene, brainData, {
         width: canvas.width,
         height: canvas.height,
       });
     }
-    else if (networkVizType !== undefined){
+    else if (networkViz && networkVizType === 'galaxy'){
+      networkViz.dispose();
+      networkViz = undefined;
       networkViz = createGalaxyBrainViz(scene, brainData, {
         particleSize: 2.0,
         brightness: 2.0,
@@ -92,7 +94,15 @@ const world = async (props) => {
         numArms: 5
       });
     }
-    if (networkViz) networkViz.toggle(networkVizType !== undefined);
+    else{
+      if(networkViz) networkViz.dispose();
+      networkViz = undefined;
+      networkViz = createLivingBrainViz(scene, brainData, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    networkViz.toggle(networkVizType !== undefined);
   }
 
   let anim, animationController;
@@ -165,7 +175,7 @@ const world = async (props) => {
         animationController.update(threejs.delta);
 
         if (networkVizType !== undefined) {
-          const brainData = brainInstance.generateGraphData();
+          brainData = brainInstance.generateGraphData();
           // console.log(networkViz.getPerformanceInfo());
           networkViz.updateGraph(brainData);
           networkViz.animate(camera, performance.now());
@@ -219,6 +229,7 @@ const world = async (props) => {
     );
     postMaterial.needsUpdate = true;
 
+    renderer.clear();
     renderer.render(scene, camera);
   };
 
