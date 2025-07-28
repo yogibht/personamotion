@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T07:25:47.201Z
+// Combined at 2025-07-28T08:27:05.743Z
 // 16 files
 
 
@@ -797,7 +797,7 @@ window.initiateLeftBrain = initiateLeftBrain;
 
 
 // ====== second.js ======
-//voiced based training goes here in the future
+//voiced based training goes here in the future using phoneme
 
 
 // ====== third.js ======
@@ -1029,17 +1029,22 @@ Do not include any other text or conversational elements outside the JSON.`,
 
 class BakedPromptGenerator extends BasePromptGenerator {
   generatePrompt(userPrompt) {
+    // Generate the animation description list dynamically
+    const animationDescriptionList = BAKED_ANIMATIONS.map(
+      (anim) => `- "${anim.name}": ${anim.description}`
+    ).join('\n');
+
     return {
       system: `You are an intent-aware animation selector for a 3D character.
 Your task is to choose one or more animations that best represent the character's emotional state, communicative intent, or behavioral attitude in response to the user's prompt. You can also specify how these animations should be played.
 
 Below is the list of available animations with their expressive meanings:
 
-${this.animationDescriptionList}
+${animationDescriptionList}
 
 Use these descriptions to guide your choice based on the tone and purpose of your response — such as conveying excitement, sadness, sarcasm, disagreement, surprise, etc.
 
-You MUST respond ONLY with a JSON object. Do not include any other text or conversational elements.
+You MUST respond with a short expressive reply followed by a JSON object on a new line. Do not include any other text or conversational elements. The JSON object MUST adhere to the following schema.
 
 OUTPUT JSON SCHEMA:
 \`\`\`json
@@ -1047,7 +1052,7 @@ OUTPUT JSON SCHEMA:
   "content": "<your expressive reply>",
   "animationOptions": {
     "name": "<string, primary animation name>",
-    "sequence": "<optional, array of strings, animation names to play in sequence, e.g., [\"idle\", \"shrug\", \"walk\"]. If provided, 'name' should be the last animation in the sequence.",
+    "sequence": "<optional, array of strings, animation names to play in sequence, e.g., [\"idle\", \"shrug\", \"walk\"]. If provided, 'name' should be the last animation in the sequence.>",
     "mode": "<optional, string, 'play' or 'crossfade'. Default is 'play'. If 'sequence' is used, 'crossfade' is typically implied.>",
     "fadeDuration": "<optional, number, duration in seconds for crossfades. Default is 0.4.>",
     "loop": "<optional, number, 1 or 0. Default is 0. Use 1 for single-play animations.>"
@@ -1055,7 +1060,7 @@ OUTPUT JSON SCHEMA:
 }
 \`\`\`
 Ensure "name" and any "sequence" animation names are from the provided list. If "sequence" is used, "name" should be the last animation in that sequence.`,
-      user: `Given the user input: "${userPrompt}"\nSelect one or more appropriate animations from the list above (based on description) and generate a short expressive reply. Output only in the specified JSON format.`,
+      user: `Given the user input: "${userPrompt}"\nGenerate a short expressive reply and select one or more appropriate animations from the list above (based on description). Your response should start with the expressive reply, followed immediately by the JSON object.`
     };
   }
 }
@@ -1176,7 +1181,6 @@ const callAncestors = async (data) => {
       default:
         throw new Error(`Payload generation not implemented for LLM: ${selectedThirdBrain}`);
     }
-
     const homecall = await UTILITIES.remoteRequest({
       userData: llmPayload,
       APIKEY: data.ENV.API[selectedThirdBrain].key,
@@ -1185,7 +1189,7 @@ const callAncestors = async (data) => {
     });
 
     let processedcall = JSON.parse(homecall);
-
+    console.log(processedcall);
     let response_text = '';
     if (selectedThirdBrain === 'GEMINI') {
       response_text = processedcall?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -1203,16 +1207,12 @@ const callAncestors = async (data) => {
     let AIResponse = null;
     let cleanedText = response_text.trim();
 
-    cleanedText = cleanedText.replace(/^```(?:json)?\s*|```\s*$/g, '').trim();
-
-    cleanedText = cleanedText.replace(/"(.*?)=>([\s\S]*?)"/g, (match, p1, p2) => {
-      return `"${p1}=>${p2.replace(/[\n\r]/g, " ")}"`;
-    });
-
-    cleanedText = cleanedText.replace(/,\s*([}\]])/g, "$1");
-
     try {
-      const parsedLLMResponse = JSON.parse(cleanedText);
+      const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
+
+      const match = cleanedText.match(jsonRegex);
+
+      const parsedLLMResponse = JSON.parse(match[1])
 
       if (mode === "baked") {
         // BAKED MODE: Expect { content: "...", animationOptions: { ... } }
