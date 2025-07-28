@@ -1,5 +1,3 @@
-const MIN_CANVAS_SIZE = 400;
-
 const mainContentHTML = `
   <div id="personasync">
     <div id="personasync-content">
@@ -23,7 +21,6 @@ const UIComponents = {
   buttons: {
     render: (container, radialContainer, options = {}) => {
       const allButtons = (options.buttons && options.buttons.length > 0) ? options.buttons : DEFAULT_BUTTONS;
-
       // Show only buttons for the current menu level
       const submenuContext = options._submenuContext || [];
       let buttons;
@@ -151,60 +148,55 @@ const UIComponents = {
   }
 };
 
-const setupWindow = async (options) => {
-  const container = document.getElementById('personasync');
-  const canvas = document.getElementById('personawindow');
-  const radialContainer = document.getElementById('radialui');
-  const promptBox = document.getElementById('promptBox');
-  const resizeHandle = document.getElementById('resizeHandle');
+const setupResponseHandler = (contentDiv) => {
+    const responseContainer = contentDiv.querySelector('.response-container');
 
-  canvas.width = Math.max(container.clientWidth, MIN_CANVAS_SIZE);
-  canvas.height = Math.max(container.clientHeight, MIN_CANVAS_SIZE);
+    $STATE.subscribe('promptResponse', (response) => {
+        if (!response?.html) return;
 
-  canvas.addEventListener('click', (e) => {
-    $STATE.set('canvasClicked', { x: e.offsetX, y: e.offsetY });
-  });
+        const responseElement = document.createElement('div');
+        responseElement.className = 'response-item';
+        responseElement.innerHTML = response.html;
+        responseContainer.prepend(responseElement);
 
-  UIComponents.buttons.render(container, radialContainer, {
-    buttons: options.buttons,
-    execFunctions: options.execFunctions,
-    buttonLayout: options.buttonLayout,
-    buttonSizePercent: options.buttonSizePercent,
-    backIcon: options.backIcon
-  });
+        // Scroll to show new content
+        setTimeout(() => {
+            // responseContainer.scrollTop = responseContainer.scrollHeight;
+            responseContainer.scrollTop = 0;
+        }, 50);
+    });
+};
 
-  UIComponents.prompt.render(container, promptBox, {
-    promptPosition: options.promptPosition,
-    promptPlaceholder: options.promptPlaceholder
-  });
-
-  let isResizing = false, startX, startY, startWidth, startHeight;
-  const inputManager = createInputManager(window);
-
-  inputManager.on('click', (data) => {
-    if (data.event.target === resizeHandle) {
-      isResizing = true;
-      startX = data.currentPosition.x;
-      startY = data.currentPosition.y;
-      startWidth = container.clientWidth;
-      startHeight = container.clientHeight;
-      data.event.preventDefault();
+const renderViewWindow = async (options = {}) => {
+    document.body.insertAdjacentHTML('afterbegin', mainContentHTML);
+    try {
+        const window = await setupWindow(options);
+        return window;
+    } catch(err) {
+        console.error("Error initializing window:", err);
     }
-  });
+};
 
-  inputManager.on('move', (data) => {
-    if (!isResizing) return;
-    const dx = data.currentPosition.x - startX;
-    const dy = data.currentPosition.y - startY;
+const setupWindow = async (options) => {
+    let firstClick = options.storageData?.firstClicked || false;
 
-    const newWidth = Math.max(MIN_CANVAS_SIZE, Math.min(window.innerWidth - 50, startWidth - dx));
-    const newHeight = Math.max(MIN_CANVAS_SIZE, Math.min(window.innerHeight - 50, startHeight - dy));
+    const inputManager = createInputManager(window);
+    const container = document.getElementById('personasync');
+    const contentDiv = document.getElementById('personasync-content');
+    const resizeHandle = document.getElementById('resizeHandle');
+    const minimizeHandle = document.getElementById('minimizeHandle');
+    const canvas = document.getElementById('personawindow');
+    const radialContainer = document.getElementById('radialui');
+    const promptBox = document.getElementById('promptBox');
+    const wipBanner = document.getElementById('wipBanner');
+    const clickMeSign = document.getElementById('clickMeSign');
+    if (firstClick) clickMeSign.style.display = 'none';
 
-    container.style.width = `${newWidth}px`;
-    container.style.height = `${newHeight}px`;
-    canvas.width = newWidth;
-    canvas.height = newHeight;
+    // Initialize canvas
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
 
+    // Initialize UI components
     UIComponents.buttons.render(container, radialContainer, {
       buttons: options.buttons,
       execFunctions: options.execFunctions,
@@ -212,59 +204,137 @@ const setupWindow = async (options) => {
       buttonSizePercent: options.buttonSizePercent,
       backIcon: options.backIcon
     });
-  });
 
-  inputManager.on('idle', () => isResizing = false);
+    UIComponents.prompt.render(container, promptBox, {
+        promptPosition: options.promptPosition,
+        promptPlaceholder: options.promptPlaceholder
+    });
 
-  return { container, canvas, inputManager, radialContainer, promptBox };
-};
+    // Initialize response handler
+    setupResponseHandler(contentDiv);
 
-const renderViewWindow = async (options = {}) => {
-  document.body.insertAdjacentHTML('afterbegin', mainContentHTML);
-  const windowInstance = await setupWindow(options);
+    // Set up prompt box handling
+    promptBox.addEventListener('keyup', (event) => {
+        if (event.key === 'Enter' && promptBox.value.trim()) {
+            const data = { mode: 'baked', prompt: promptBox.value, ENV: options.ENV };
+            $STATE.set('callAncestors', data);
+            promptBox.value = '';
+        }
+    });
 
-  const resizeHandle = document.getElementById('resizeHandle');
-  const minimizeHandle = document.getElementById('minimizeHandle');
-  const promptBox = document.getElementById('promptBox');
-  const radialContainer = document.getElementById('radialui');
-  const container = document.getElementById('personasync');
-  const clickMeSign = document.getElementById('clickMeSign');
-  const wipBanner = document.getElementById('wipBanner');
-  let firstClick = options.storageData?.firstClicked || false;
+    // Resize functionality (width and height)
+    let isResizing = false, minimize = false;
+    let startX, startY, startWidth, startHeight;
 
-  const toggleUI = () => {
-    const isVisible = resizeHandle.style.display !== 'block';
-    radialContainer.style.display = isVisible ? 'block' : 'none';
-    resizeHandle.style.display = isVisible ? 'block' : 'none';
-    minimizeHandle.style.display = isVisible ? 'block' : 'none';
-    promptBox.style.display = isVisible ? 'block' : 'none';
-    container.style.border = isVisible ? '2px solid #000' : 'none';
+    const handleDragStart = (data) => {
+        if (data.event.target === resizeHandle) {
+          isResizing = true;
+          startX = data.currentPosition.x;
+          startY = data.currentPosition.y;
+          startWidth = container.clientWidth;
+          startHeight = container.clientHeight;
+          data.event.preventDefault();
+        }
+        else if (data.event.target === minimizeHandle) {
+          minimize = true;
+        }
+    };
 
-    if (isVisible) {
-      UIComponents.buttons.render(container, radialContainer, {
-        buttons: options.buttons,
-        execFunctions: options.execFunctions,
-        buttonLayout: options.buttonLayout,
-        buttonSizePercent: options.buttonSizePercent,
-        backIcon: options.backIcon
-      });
-    }
+    const handleMove = (data) => {
+        if (!isResizing) return;
 
-    if (!firstClick) {
-      firstClick = true;
-      clickMeSign.style.display = 'none';
-      saveData({ firstClicked: true });
-    }
-  };
+        const dx = data.currentPosition.x - startX;
+        const dy = data.currentPosition.y - startY;
 
-  $STATE.subscribe('toggleUI', toggleUI);
-  let prevBrainViz = undefined;
-  $STATE.subscribe('toggleBrainViz', (state) => {
-    wipBanner.style.display = state !== prevBrainViz ? 'flex' : 'none';
-    prevBrainViz = prevBrainViz === state ? undefined : state;
-  });
+        const newWidth = Math.max(200, Math.min(window.innerWidth - 50, startWidth - dx));
+        const newHeight = Math.max(200, Math.min(window.innerHeight - 50, startHeight - dy));
 
-  return windowInstance;
+        container.style.width = `${newWidth}px`;
+        container.style.height = `${newHeight}px`;
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        if (resizeHandle.style.display === 'block') {
+          UIComponents.buttons.render(container, radialContainer, {
+            buttons: options.buttons,
+            execFunctions: options.execFunctions,
+            buttonLayout: options.buttonLayout,
+            buttonSizePercent: options.buttonSizePercent,
+            backIcon: options.backIcon
+          });
+        }
+    };
+
+    const handleUp = () => {
+      if (isResizing) {
+        isResizing = false;
+        $STATE.set('containerNeedsUpdate', true);
+      }
+      else if(minimize) {
+        console.log('minimize the visualization!!!');
+      }
+    };
+
+    // Set up input manager handlers
+    inputManager.on('click', handleDragStart);
+    inputManager.on('move', handleMove);
+    inputManager.on('idle', handleUp);
+    inputManager.on('touchStart', handleDragStart);
+    inputManager.on('touchMove', handleMove);
+    inputManager.on('touchEnd', handleUp);
+
+    // Toggle UI visibility
+    const toggleUI = () => {
+        const isVisible = resizeHandle.style.display !== 'block';
+        radialContainer.style.display = isVisible ? 'block' : 'none';
+        resizeHandle.style.display = isVisible ? 'block' : 'none';
+        minimizeHandle.style.display = isVisible ? 'block' : 'none';
+        promptBox.style.display = isVisible ? 'block' : 'none';
+        container.style.border = isVisible ? '2px solid #000' : 'none';
+
+        if (isVisible) {
+          UIComponents.buttons.render(container, radialContainer, {
+            buttons: options.buttons,
+            execFunctions: options.execFunctions,
+            buttonLayout: options.buttonLayout,
+            buttonSizePercent: options.buttonSizePercent,
+            backIcon: options.backIcon
+          });
+        }
+
+        if (!firstClick) {
+          firstClick = true;
+          clickMeSign.style.display = 'none';
+          saveData({
+            firstClicked: true
+          })
+        }
+    };
+
+    $STATE.subscribe('toggleUI', toggleUI);
+    $STATE.subscribe('toggleBrainViz', (state) => {
+      wipBanner.style.display = state !== undefined ? 'flex' : 'none';
+    })
+
+    return {
+        container,
+        canvas,
+        inputManager,
+        radialContainer,
+        promptBox,
+        contentDiv,
+        toggleUI,
+        renderButtons: (buttonOptions) => UIComponents.buttons.render(
+            container,
+            radialContainer,
+            { ...options, ...buttonOptions }
+        ),
+        resetContainer: () => {
+            const responseContainer = contentDiv.querySelector('.response-container');
+            responseContainer.innerHTML = '';
+            responseContainer.scrollTop = 0;
+        }
+    };
 };
 
 window.renderViewWindow = renderViewWindow;
