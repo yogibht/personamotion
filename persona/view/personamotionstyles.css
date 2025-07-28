@@ -1,5 +1,5 @@
 /* Main Container */
-#personasync {
+#personamotion {
     position: fixed;
     z-index: 10000;
     font-family: sans-serif;
@@ -19,14 +19,14 @@
 }
 
 /* Content Area */
-#personasync-content {
+#personamotion-content {
     position: relative;
     flex: 1;
     overflow-y: auto;
 }
 
 /* Response Container - Behind everything */
-#response-container {
+#personamotion-responseContainer {
     position: absolute;
     width: 100%;
     height: 100%;
@@ -37,7 +37,7 @@
 }
 
 /* Canvas - Full background */
-#personawindow {
+#personamotion-window {
     position: absolute;
     width: 100%;
     height: 100%;
@@ -46,7 +46,7 @@
 }
 
 /* Resize Handle */
-#resizeHandle {
+#personamotion-resizeHandle {
     position: absolute;
     width: 16px;
     height: 16px;
@@ -58,12 +58,12 @@
     display: none;
 }
 
-#resizeHandle:hover {
+#personamotion-resizeHandle:hover {
     background-color: #0d47a1;
 }
 
 /* Minimize Handle */
-#minimizeHandle {
+#personamotion-minimizeHandle {
     position: absolute;
     width: 16px;
     height: 16px;
@@ -75,12 +75,12 @@
     display: none;
 }
 
-#minimizeHandle:hover {
+#personamotion-minimizeHandle:hover {
     background-color: #5e1f16;
 }
 
 /* UI Container */
-#radialui {
+#personamotion-radialUI {
     position: absolute;
     width: 100%;
     height: 100%;
@@ -90,7 +90,7 @@
 }
 
 /* Buttons */
-.radialbutton {
+.personamotion-radialButton {
     position: absolute;
     background: rgba(255, 255, 255, 1);
     border: 2px solid #888;
@@ -110,17 +110,17 @@
     user-select: none;
 }
 
-.radialbutton:hover {
+.personamotion-radialButton:hover {
     transform: scale(1.1);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.radialicon {
+.personamotion-radialIcon {
     font-size: calc(var(--button-size) * 0.5);
     line-height: 1.2;
 }
 
-.radiallabel {
+.personamotion-radialLabel {
     display: block;
     font-size: calc(var(--button-size) * 0.25);
     margin-top: -4px;
@@ -128,7 +128,7 @@
 }
 
 /* Prompt Box */
-#promptBox {
+#personamotion-promptBox {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -148,20 +148,20 @@
     bottom: 20px;
 }
 
-.radialbutton.sway-cw {
+.personamotion-radialButton.sway-cw {
     animation: radialSwayCW 2s ease-in-out infinite;
 }
 
-.radialbutton.sway-ccw {
+.personamotion-radialButton.sway-ccw {
     animation: radialSwayCCW 2s ease-in-out infinite;
 }
 
-#promptBox.swaying {
+#personamotion-promptBox.swaying {
     animation: sway 3s ease-in-out infinite;
     transform-origin: center bottom;
 }
 
-#wipBanner {
+#personamotion-wipBanner {
     position: fixed;
     bottom: 15px;
     right: 15px;
@@ -181,7 +181,7 @@
     animation: gentle-bounce 2s infinite ease-in-out;
 }
 
-#clickMeSign {
+#personamotion-clickMeSign {
     position: absolute;
     top: 40%;
     left: 65%;

@@ -1,15 +1,15 @@
 const mainContentHTML = `
-  <div id="personasync">
-    <div id="personasync-content">
-      <div id="resizeHandle" title="Resize Persona Window"></div>
-      <div id="minimizeHandle" title="Minimize Persona"></div>
-      <div id="response-container"></div>
-      <canvas id="personawindow"></canvas>
-      <div id="radialui"></div>
-      <input type="text" id="promptBox" placeholder="Ask me something..." />
+  <div id="personamotion">
+    <div id="personamotion-content">
+      <div id="personamotion-resizeHandle" title="Resize Persona Window"></div>
+      <div id="personamotion-minimizeHandle" title="Minimize Persona"></div>
+      <div id="personamotion-responseContainer"></div>
+      <canvas id="personamotion-window"></canvas>
+      <div id="personamotion-radialUI"></div>
+      <input type="text" id="personamotion-promptBox" placeholder="Ask me something..." />
     </div>
-    <div id="wipBanner">WIP🛠</div>
-    <div id="clickMeSign">Click Me</div>
+    <div id="personamotion-wipBanner">WIP🛠</div>
+    <div id="personamotion-clickMeSign">Click Me</div>
   </div>
 `;
 
@@ -71,9 +71,9 @@ const UIComponents = {
 
       const renderButton = (btn, buttonSize, centerX, centerY, spacing, layout, index, total) => {
         const el = document.createElement('div');
-        el.className = 'radialbutton';
+        el.className = 'personamotion-radialButton';
         el.classList.add(index % 2 === 0 ? 'sway-cw' : 'sway-ccw');
-        el.id = `button_${btn.id}`;
+        el.id = `personamotion_button_${btn.id}`;
 
         switch (layout) {
           case 'line-top':
@@ -102,7 +102,7 @@ const UIComponents = {
 
         el.style.width = `${buttonSize}px`;
         el.style.height = `${buttonSize}px`;
-        el.innerHTML = `<div class="radialicon">${btn.icon}</div><span class="radiallabel">${btn.label}</span>`;
+        el.innerHTML = `<div class="personamotion-radialicon">${btn.icon}</div><span class="personamotion-radiallabel">${btn.label}</span>`;
 
         el.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -149,7 +149,7 @@ const UIComponents = {
 };
 
 const setupResponseHandler = (contentDiv) => {
-  const responseContainer = contentDiv.querySelector('#response-container');
+  const responseContainer = contentDiv.querySelector('#personamotion-responseContainer');
 
   // We will reuse the same animated element
   let fadeDiv = null;
@@ -166,7 +166,7 @@ const setupResponseHandler = (contentDiv) => {
 
     // 2) Create the new response item inside the animated wrapper
     const inner = document.createElement('div');
-    inner.className = 'response-item';
+    inner.className = 'personamotion-responseItem';
     inner.innerHTML = response.html;
 
     fadeDiv = document.createElement('div');
@@ -205,15 +205,15 @@ const setupWindow = async (options) => {
     let firstClick = options.storageData?.firstClicked || false;
 
     const inputManager = createInputManager(window);
-    const container = document.getElementById('personasync');
-    const contentDiv = document.getElementById('personasync-content');
-    const resizeHandle = document.getElementById('resizeHandle');
-    const minimizeHandle = document.getElementById('minimizeHandle');
-    const canvas = document.getElementById('personawindow');
-    const radialContainer = document.getElementById('radialui');
-    const promptBox = document.getElementById('promptBox');
-    const wipBanner = document.getElementById('wipBanner');
-    const clickMeSign = document.getElementById('clickMeSign');
+    const container = document.getElementById('personamotion');
+    const contentDiv = document.getElementById('personamotion-content');
+    const resizeHandle = document.getElementById('personamotion-resizeHandle');
+    const minimizeHandle = document.getElementById('personamotion-minimizeHandle');
+    const canvas = document.getElementById('personamotion-window');
+    const radialContainer = document.getElementById('personamotion-radialUI');
+    const promptBox = document.getElementById('personamotion-promptBox');
+    const wipBanner = document.getElementById('personamotion-wipBanner');
+    const clickMeSign = document.getElementById('personamotion-clickMeSign');
     if (firstClick) clickMeSign.style.display = 'none';
 
     // Initialize canvas
@@ -357,7 +357,7 @@ const setupWindow = async (options) => {
             { ...options, ...buttonOptions }
         ),
         resetContainer: () => {
-            const responseContainer = contentDiv.querySelector('.response-container');
+            const responseContainer = contentDiv.querySelector('#personamotion-responseContainer');
             responseContainer.innerHTML = '';
             responseContainer.scrollTop = 0;
         }

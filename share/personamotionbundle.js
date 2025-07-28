@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T03:24:15.896Z
+// Combined at 2025-07-28T04:08:08.084Z
 // 16 files
 
 
@@ -3107,21 +3107,39 @@ const world = async (props) => {
 
   postScene.add(quad);
 
-  let anim, animationController, networkViz, networkVizType, brainData;
+  let networkViz, networkVizType, brainData;
+  const switchBrainViz = (state) => {
+    if (networkVizType === state) {
+      networkVizType = undefined;
+    }
+    else {
+      networkVizType = state;
+    }
+    if (networkViz !== undefined) networkViz.dispose();
+    networkViz = undefined;
+    console.log(networkVizType);
+    if (networkVizType === 'bulb' || networkVizType === undefined) {
+      networkViz = createLivingBrainViz(scene, brainData, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    else if (networkVizType !== undefined){
+      networkViz = createGalaxyBrainViz(scene, brainData, {
+        particleSize: 2.0,
+        brightness: 2.0,
+        rotationSpeed: 0.1,
+        spiralTightness: 2.0,
+        numArms: 5
+      });
+    }
+    if (networkViz) networkViz.toggle(networkVizType !== undefined);
+  }
+
+  let anim, animationController;
   try {
     brainData = brainInstance.generateGraphData();
-    networkViz = createLivingBrainViz(scene, brainData, {
-      width: canvas.width,
-      height: canvas.height,
-    });
-    // networkViz = createGalaxyBrainViz(scene, brainData, {
-    //   particleSize: 2.0,
-    //   brightness: 2.0,
-    //   rotationSpeed: 0.1,
-    //   spiralTightness: 2.0,
-    //   numArms: 5
-    // });
-    networkViz.toggle(networkVizType !== undefined);
+    switchBrainViz();
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -3295,7 +3313,7 @@ const world = async (props) => {
   const { tts, voiceOptions } = await initializeTTS();
 
   const processAndAnimateLLMResponse = async (response) => {
-    const container = document.querySelector('.response-container');
+    const container = document.querySelector('#personamotion-responseContainer');
     if (container && response.html) {
       container.innerHTML = response.html;
     }
@@ -3311,34 +3329,7 @@ const world = async (props) => {
 
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
-  $STATE.subscribe('toggleBrainViz', (state) => {
-    if (networkVizType === state) {
-      networkVizType = undefined;
-    }
-    else {
-      networkVizType = state;
-    }
-    if (networkVizType === 'bulb') {
-      networkViz.dispose();
-      networkViz = undefined;
-      networkViz = createLivingBrainViz(scene, brainData, {
-        width: canvas.width,
-        height: canvas.height,
-      });
-    }
-    else if (networkVizType !== undefined){
-      networkViz.dispose();
-      networkViz = undefined;
-      networkViz = createGalaxyBrainViz(scene, brainData, {
-        particleSize: 2.0,
-        brightness: 2.0,
-        rotationSpeed: 0.1,
-        spiralTightness: 2.0,
-        numArms: 5
-      });
-    }
-    if (networkViz) networkViz.toggle(networkVizType !== undefined);
-  });
+  $STATE.subscribe('toggleBrainViz', switchBrainViz);
 
   $STATE.subscribe('switchFilterUp', updateMaterial);
 
@@ -3804,17 +3795,17 @@ window.loadData = loadData;
 
 // ====== window.js ======
 const mainContentHTML = `
-  <div id="personasync">
-    <div id="personasync-content">
-      <div id="resizeHandle" title="Resize Persona Window"></div>
-      <div id="minimizeHandle" title="Minimize Persona"></div>
-      <div class="response-container"></div>
-      <canvas id="personawindow"></canvas>
-      <div id="radialui"></div>
-      <input type="text" id="promptBox" placeholder="Ask me something..." />
+  <div id="personamotion">
+    <div id="personamotion-content">
+      <div id="personamotion-resizeHandle" title="Resize Persona Window"></div>
+      <div id="personamotion-minimizeHandle" title="Minimize Persona"></div>
+      <div id="personamotion-responseContainer"></div>
+      <canvas id="personamotion-window"></canvas>
+      <div id="personamotion-radialUI"></div>
+      <input type="text" id="personamotion-promptBox" placeholder="Ask me something..." />
     </div>
-    <div id="wipBanner">WIP🛠</div>
-    <div id="clickMeSign">Click Me</div>
+    <div id="personamotion-wipBanner">WIP🛠</div>
+    <div id="personamotion-clickMeSign">Click Me</div>
   </div>
 `;
 
@@ -3876,9 +3867,9 @@ const UIComponents = {
 
       const renderButton = (btn, buttonSize, centerX, centerY, spacing, layout, index, total) => {
         const el = document.createElement('div');
-        el.className = 'radialbutton';
+        el.className = 'personamotion-radialButton';
         el.classList.add(index % 2 === 0 ? 'sway-cw' : 'sway-ccw');
-        el.id = `button_${btn.id}`;
+        el.id = `personamotion_button_${btn.id}`;
 
         switch (layout) {
           case 'line-top':
@@ -3907,7 +3898,7 @@ const UIComponents = {
 
         el.style.width = `${buttonSize}px`;
         el.style.height = `${buttonSize}px`;
-        el.innerHTML = `<div class="radialicon">${btn.icon}</div><span class="radiallabel">${btn.label}</span>`;
+        el.innerHTML = `<div class="personamotion-radialicon">${btn.icon}</div><span class="personamotion-radiallabel">${btn.label}</span>`;
 
         el.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -3954,22 +3945,46 @@ const UIComponents = {
 };
 
 const setupResponseHandler = (contentDiv) => {
-    const responseContainer = contentDiv.querySelector('.response-container');
+  const responseContainer = contentDiv.querySelector('#personamotion-responseContainer');
 
-    $STATE.subscribe('promptResponse', (response) => {
-        if (!response?.html) return;
+  // We will reuse the same animated element
+  let fadeDiv = null;
 
-        const responseElement = document.createElement('div');
-        responseElement.className = 'response-item';
-        responseElement.innerHTML = response.html;
-        responseContainer.prepend(responseElement);
+  $STATE.subscribe('promptResponse', (response) => {
+    if (!response?.html) return;
 
-        // Scroll to show new content
-        setTimeout(() => {
-            // responseContainer.scrollTop = responseContainer.scrollHeight;
-            responseContainer.scrollTop = 0;
-        }, 50);
+    // 1) If a fade is already in progress, kill it and clear old items
+    if (fadeDiv) {
+      fadeDiv.remove();
+      fadeDiv = null;
+    }
+    responseContainer.innerHTML = '';
+
+    // 2) Create the new response item inside the animated wrapper
+    const inner = document.createElement('div');
+    inner.className = 'personamotion-responseItem';
+    inner.innerHTML = response.html;
+
+    fadeDiv = document.createElement('div');
+    fadeDiv.style.cssText = `
+      transition: opacity 20s linear;
+      opacity: 1;
+    `;
+    fadeDiv.appendChild(inner);
+    responseContainer.appendChild(fadeDiv);
+
+    // 3) Force reflow, then start the fade
+    fadeDiv.offsetHeight;           // force reflow
+    fadeDiv.style.opacity = '0';
+
+    // 4) When fade finishes, remove the wrapper
+    fadeDiv.addEventListener('transitionend', () => {
+      if (fadeDiv) {
+        fadeDiv.remove();
+        fadeDiv = null;
+      }
     });
+  });
 };
 
 const renderViewWindow = async (options = {}) => {
@@ -3986,15 +4001,15 @@ const setupWindow = async (options) => {
     let firstClick = options.storageData?.firstClicked || false;
 
     const inputManager = createInputManager(window);
-    const container = document.getElementById('personasync');
-    const contentDiv = document.getElementById('personasync-content');
-    const resizeHandle = document.getElementById('resizeHandle');
-    const minimizeHandle = document.getElementById('minimizeHandle');
-    const canvas = document.getElementById('personawindow');
-    const radialContainer = document.getElementById('radialui');
-    const promptBox = document.getElementById('promptBox');
-    const wipBanner = document.getElementById('wipBanner');
-    const clickMeSign = document.getElementById('clickMeSign');
+    const container = document.getElementById('personamotion');
+    const contentDiv = document.getElementById('personamotion-content');
+    const resizeHandle = document.getElementById('personamotion-resizeHandle');
+    const minimizeHandle = document.getElementById('personamotion-minimizeHandle');
+    const canvas = document.getElementById('personamotion-window');
+    const radialContainer = document.getElementById('personamotion-radialUI');
+    const promptBox = document.getElementById('personamotion-promptBox');
+    const wipBanner = document.getElementById('personamotion-wipBanner');
+    const clickMeSign = document.getElementById('personamotion-clickMeSign');
     if (firstClick) clickMeSign.style.display = 'none';
 
     // Initialize canvas
@@ -4138,7 +4153,7 @@ const setupWindow = async (options) => {
             { ...options, ...buttonOptions }
         ),
         resetContainer: () => {
-            const responseContainer = contentDiv.querySelector('.response-container');
+            const responseContainer = contentDiv.querySelector('#personamotion-responseContainer');
             responseContainer.innerHTML = '';
             responseContainer.scrollTop = 0;
         }

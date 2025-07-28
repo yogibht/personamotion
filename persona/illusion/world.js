@@ -67,21 +67,38 @@ const world = async (props) => {
 
   postScene.add(quad);
 
-  let anim, animationController, networkViz, networkVizType, brainData;
+  let networkViz, networkVizType, brainData;
+  const switchBrainViz = (state) => {
+    if (networkVizType === state) {
+      networkVizType = undefined;
+    }
+    else {
+      networkVizType = state;
+    }
+    if (networkViz !== undefined) networkViz.dispose();
+    networkViz = undefined;
+    if (networkVizType === 'bulb' || networkVizType === undefined) {
+      networkViz = createLivingBrainViz(scene, brainData, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+    }
+    else if (networkVizType !== undefined){
+      networkViz = createGalaxyBrainViz(scene, brainData, {
+        particleSize: 2.0,
+        brightness: 2.0,
+        rotationSpeed: 0.1,
+        spiralTightness: 2.0,
+        numArms: 5
+      });
+    }
+    if (networkViz) networkViz.toggle(networkVizType !== undefined);
+  }
+
+  let anim, animationController;
   try {
     brainData = brainInstance.generateGraphData();
-    networkViz = createLivingBrainViz(scene, brainData, {
-      width: canvas.width,
-      height: canvas.height,
-    });
-    // networkViz = createGalaxyBrainViz(scene, brainData, {
-    //   particleSize: 2.0,
-    //   brightness: 2.0,
-    //   rotationSpeed: 0.1,
-    //   spiralTightness: 2.0,
-    //   numArms: 5
-    // });
-    networkViz.toggle(networkVizType !== undefined);
+    switchBrainViz();
 
     const entity = await prepEntity(scene, {
       modelURL,
@@ -255,7 +272,7 @@ const world = async (props) => {
   const { tts, voiceOptions } = await initializeTTS();
 
   const processAndAnimateLLMResponse = async (response) => {
-    const container = document.querySelector('.response-container');
+    const container = document.querySelector('#personamotion-responseContainer');
     if (container && response.html) {
       container.innerHTML = response.html;
     }
@@ -271,34 +288,7 @@ const world = async (props) => {
 
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
-  $STATE.subscribe('toggleBrainViz', (state) => {
-    if (networkVizType === state) {
-      networkVizType = undefined;
-    }
-    else {
-      networkVizType = state;
-    }
-    if (networkVizType === 'bulb') {
-      networkViz.dispose();
-      networkViz = undefined;
-      networkViz = createLivingBrainViz(scene, brainData, {
-        width: canvas.width,
-        height: canvas.height,
-      });
-    }
-    else if (networkVizType !== undefined){
-      networkViz.dispose();
-      networkViz = undefined;
-      networkViz = createGalaxyBrainViz(scene, brainData, {
-        particleSize: 2.0,
-        brightness: 2.0,
-        rotationSpeed: 0.1,
-        spiralTightness: 2.0,
-        numArms: 5
-      });
-    }
-    if (networkViz) networkViz.toggle(networkVizType !== undefined);
-  });
+  $STATE.subscribe('toggleBrainViz', switchBrainViz);
 
   $STATE.subscribe('switchFilterUp', updateMaterial);
 
