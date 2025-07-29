@@ -2,3 +2,5 @@
 */package-lock.json
 env.json
 */personamotion.blend
+share/*
+!share/.gitkeep
