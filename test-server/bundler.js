@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { promisify } = require('util');
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
@@ -104,12 +105,15 @@ async function combineJSFiles({
   }
 }
 
+const filenameHash = crypto.createHash('sha1').update(Date.now().toString() + Math.random().toString()).digest('hex').slice(0, 8);
+const outputFilename = `personamotionbundle_${filenameHash}.js`;
+
 // Example usage:
 combineJSFiles({
   searchDirs: [
     path.join(__dirname, '../', 'persona'),
   ],
-  outputPath: path.join(__dirname, '../', 'share', 'personamotionbundle.js'),
+  outputPath: path.join(__dirname, '../', 'share', outputFilename),
   fileOrder: [
     '../persona/toolbelt/utilities.js',
     '../persona/toolbelt/inputmanager.js',

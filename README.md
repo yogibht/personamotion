@@ -6,6 +6,8 @@ A web extension featuring an LLM-based animated avatar with future interactive c
 
 PersonaMotion is a web extension that provides an animated 3D avatar powered by Large Language Models (Claude, Gemini, or OpenAI). The avatar uses Three.js for 3D rendering, Brain.js for neural processing, and can be bundled for standalone web applications.
 
+![Demo](./share/demo.gif)
+
 ## Current Features
 
 - **3D Animated Avatar**: GLTF model-based character with realistic animations
@@ -22,9 +24,11 @@ PersonaMotion is a web extension that provides an animated 3D avatar powered by 
 - **Personality Development**: Adaptive personality traits based on interactions
 - **Enhanced Animations**: More sophisticated facial expressions and gestures
 
-## Installation
+## To Load as browser extension
+- Chrome: Go to chrome://extensions/, enable Developer mode, click "Load unpacked"
+- Firefox: Go to about:debugging, click "This Firefox", click "Load Temporary Add-on"
 
-### As Web Extension
+### Install packages for bundling and running test server
 ```bash
 # Clone the repository
 git clone https://github.com/yogibht/personamotion.git
@@ -34,21 +38,15 @@ cd personamotion/test-server
 
 # Install dependencies
 npm install
-
-# Load as browser extension
-# Chrome: Go to chrome://extensions/, enable Developer mode, click "Load unpacked"
-# Firefox: Go to about:debugging, click "This Firefox", click "Load Temporary Add-on"
 ```
 
-### As Standalone Web App
+### Create a runnable web app bundle (WIP Docs for this)
 ```bash
 # Build the bundle
 npm run build
-
-# The built files can then be served from any web server
 ```
 
-## Usage
+## Web App Bundle Usage
 
 ### Standalone HTML Implementation
 ```html

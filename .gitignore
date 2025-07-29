@@ -3,4 +3,5 @@
 env.json
 */personamotion.blend
 share/*
-!share/.gitkeep
+!share/demo.gif
+!share/demo.webm

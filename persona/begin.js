@@ -39,15 +39,16 @@ const startPersonaMotion = async (arguments) => {
         $STATE.set('switchFilterUp', style);
       },
       () => {
-        window.open();
+        window.open('https://github.com/yogibht/personamotion', '_blank');
       }
     ];
 
     const buttons = [
       { id: 'brain_btn', icon: '🧠', label: 'brain', linkTo: 'brains' },
-      { id: 'keep_this_btn', icon: '🔥', label: 'keep_this', callbackIndex: 2 },
-      { id: 'no_good_btn', icon: '😭', label: 'no_good', callbackIndex: 3 },
+      // { id: 'keep_this_btn', icon: '🔥', label: 'keep_this', callbackIndex: 2 },
+      // { id: 'no_good_btn', icon: '😭', label: 'no_good', callbackIndex: 3 },
       { id: 'filter_me', icon: '🕶️', label: 'filter_me', callbackIndex: 4 },
+      { id: 'code_repo', icon: '📜', label: 'code_repo', callbackIndex: 5 },
 
       { id: 'brain_first', icon: '💭', label: 'first_brain', linkGroup: 'brains', callbackIndex: 0 },
       { id: 'brain_second', icon: '🌌', label: 'second_brain', linkGroup: 'brains', callbackIndex: 1 },
