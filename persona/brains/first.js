@@ -116,6 +116,7 @@ const RLHFBrain = () => {
       return net.run(input);
     },
 
+    // Somehow when I bundle, this generateGraphData works instead of the other one below.
     generateGraphData() {
       const json = net.toJSON();
       const graph = { nodes: [], links: [] };
@@ -190,6 +191,71 @@ const RLHFBrain = () => {
 
       return graph;
     }
+
+    // And this only works when running extension as is. Is it beause of the cdn version of brainjs being inherently different even though the version is the same?
+    // generateGraphData() {
+    //   const json = net.toJSON();
+    //   const graph = { nodes: [], links: [] };
+    //   const nodeIdMap = {}; // layer -> index -> nodeId
+
+    //   const layerSizes = json.sizes;
+
+    //   // 1. Create nodes
+    //   for (let layerIdx = 0; layerIdx < layerSizes.length; layerIdx++) {
+    //     const count = layerSizes[layerIdx];
+    //     nodeIdMap[layerIdx] = {};
+    //     for (let neuronIdx = 0; neuronIdx < count; neuronIdx++) {
+    //       const id = graph.nodes.length;
+    //       nodeIdMap[layerIdx][neuronIdx] = id;
+
+    //       // Bias (if exists)
+    //       let bias = null;
+    //       let activation = 'relu';
+    //       const layer = json.layers[layerIdx];
+
+    //       if (layer && Array.isArray(layer.biases) && layer.biases[neuronIdx] != null) {
+    //         bias = layer.biases[neuronIdx];
+    //       }
+
+    //       if (layerIdx === 0) activation = 'input';
+    //       else if (layerIdx === layerSizes.length - 1) activation = 'output';
+
+    //       graph.nodes.push({
+    //         id,
+    //         layer: layerIdx,
+    //         neuron: neuronIdx,
+    //         bias,
+    //         activation
+    //       });
+    //     }
+    //   }
+
+    //   // 2. Create links
+    //   for (let layerIdx = 1; layerIdx < layerSizes.length; layerIdx++) {
+    //     const currentLayer = json.layers[layerIdx];
+    //     const weightsMatrix = currentLayer.weights;
+
+    //     console.log(currentLayer);
+    //     for (let toIdx = 0; toIdx < weightsMatrix.length; toIdx++) {
+    //       const weightVec = weightsMatrix[toIdx];
+    //       const targetId = nodeIdMap[layerIdx][toIdx];
+
+    //       for (let fromIdx = 0; fromIdx < weightVec.length; fromIdx++) {
+    //         const weight = weightVec[fromIdx];
+    //         if (weight !== undefined && weight !== null) {
+    //           graph.links.push({
+    //             source: nodeIdMap[layerIdx - 1][fromIdx],
+    //             target: targetId,
+    //             weight
+    //           });
+    //         }
+    //       }
+    //     }
+    //   }
+
+    //   return graph;
+    // }
+
 
   };
 };

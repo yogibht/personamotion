@@ -492,8 +492,6 @@ const callAncestors = async (data) => {
 const initiateRightBrain = async () => {
   const globalData = {
     containerNeedsUpdate: true,
-    containerHeight: 0,
-    containerWidth: 0,
     toggleUI: false
   };
 
