@@ -117,136 +117,72 @@ const RLHFBrain = () => {
     },
 
     // Somehow when I bundle, this generateGraphData works instead of the other one below.
-    generateGraphData() {
-      const json = net.toJSON();
-      const graph = { nodes: [], links: [] };
-      const nodeIdMap = {}; // {layerIndex: {neuronIndex: graphNodeId}}
-
-      // 1. Create all nodes with direct indexing
-      for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
-        const layer = json.layers[layerIdx];
-        nodeIdMap[layerIdx] = {};
-
-        // Get sorted neuron indices once
-        const neuronIndices = Object.keys(layer)
-          .filter(k => !isNaN(k))
-          .map(Number)
-          .sort((a,b) => a-b);
-
-        for (const neuronIdx of neuronIndices) {
-          const neuron = layer[neuronIdx];
-          const id = graph.nodes.length;
-
-          graph.nodes.push({
-            id,
-            layer: layerIdx,
-            neuron: neuronIdx,
-            bias: neuron.bias,
-            activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
-          });
-
-          nodeIdMap[layerIdx][neuronIdx] = id;
-        }
-      }
-
-      // 2. Create links with optimized weight processing
-      for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
-        const layer = json.layers[layerIdx];
-        const prevLayerSize = Object.keys(json.layers[layerIdx-1]).filter(k => !isNaN(k)).length;
-
-        // Process neurons in order
-        const neuronIndices = Object.keys(layer)
-          .filter(k => !isNaN(k))
-          .map(Number)
-          .sort((a,b) => a-b);
-
-        for (const neuronIdx of neuronIndices) {
-          const neuron = layer[neuronIdx];
-          const targetId = nodeIdMap[layerIdx][neuronIdx];
-
-          // Fast path for dense weight matrices
-          if (neuron.weights && Object.keys(neuron.weights).length === prevLayerSize) {
-            for (let inputIdx = 0; inputIdx < prevLayerSize; inputIdx++) {
-              if (neuron.weights[inputIdx] !== undefined) {
-                graph.links.push({
-                  source: nodeIdMap[layerIdx-1][inputIdx],
-                  target: targetId,
-                  weight: neuron.weights[inputIdx]
-                });
-              }
-            }
-          }
-          // Slow path for sparse connections
-          else if (neuron.weights) {
-            for (const inputIdx of Object.keys(neuron.weights).map(Number)) {
-              graph.links.push({
-                source: nodeIdMap[layerIdx-1][inputIdx],
-                target: targetId,
-                weight: neuron.weights[inputIdx]
-              });
-            }
-          }
-        }
-      }
-
-      return graph;
-    }
-
-    // And this only works when running extension as is. Is it beause of the cdn version of brainjs being inherently different even though the version is the same?
     // generateGraphData() {
     //   const json = net.toJSON();
     //   const graph = { nodes: [], links: [] };
-    //   const nodeIdMap = {}; // layer -> index -> nodeId
+    //   const nodeIdMap = {}; // {layerIndex: {neuronIndex: graphNodeId}}
 
-    //   const layerSizes = json.sizes;
-
-    //   // 1. Create nodes
-    //   for (let layerIdx = 0; layerIdx < layerSizes.length; layerIdx++) {
-    //     const count = layerSizes[layerIdx];
+    //   // 1. Create all nodes with direct indexing
+    //   for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
+    //     const layer = json.layers[layerIdx];
     //     nodeIdMap[layerIdx] = {};
-    //     for (let neuronIdx = 0; neuronIdx < count; neuronIdx++) {
+
+    //     // Get sorted neuron indices once
+    //     const neuronIndices = Object.keys(layer)
+    //       .filter(k => !isNaN(k))
+    //       .map(Number)
+    //       .sort((a,b) => a-b);
+
+    //     for (const neuronIdx of neuronIndices) {
+    //       const neuron = layer[neuronIdx];
     //       const id = graph.nodes.length;
-    //       nodeIdMap[layerIdx][neuronIdx] = id;
-
-    //       // Bias (if exists)
-    //       let bias = null;
-    //       let activation = 'relu';
-    //       const layer = json.layers[layerIdx];
-
-    //       if (layer && Array.isArray(layer.biases) && layer.biases[neuronIdx] != null) {
-    //         bias = layer.biases[neuronIdx];
-    //       }
-
-    //       if (layerIdx === 0) activation = 'input';
-    //       else if (layerIdx === layerSizes.length - 1) activation = 'output';
 
     //       graph.nodes.push({
     //         id,
     //         layer: layerIdx,
     //         neuron: neuronIdx,
-    //         bias,
-    //         activation
+    //         bias: neuron.bias,
+    //         activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
     //       });
+
+    //       nodeIdMap[layerIdx][neuronIdx] = id;
     //     }
     //   }
 
-    //   // 2. Create links
-    //   for (let layerIdx = 1; layerIdx < layerSizes.length; layerIdx++) {
-    //     const currentLayer = json.layers[layerIdx];
-    //     const weightsMatrix = currentLayer.weights;
+    //   // 2. Create links with optimized weight processing
+    //   for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
+    //     const layer = json.layers[layerIdx];
+    //     const prevLayerSize = Object.keys(json.layers[layerIdx-1]).filter(k => !isNaN(k)).length;
 
-    //     console.log(currentLayer);
-    //     for (let toIdx = 0; toIdx < weightsMatrix.length; toIdx++) {
-    //       const weightVec = weightsMatrix[toIdx];
-    //       const targetId = nodeIdMap[layerIdx][toIdx];
+    //     // Process neurons in order
+    //     const neuronIndices = Object.keys(layer)
+    //       .filter(k => !isNaN(k))
+    //       .map(Number)
+    //       .sort((a,b) => a-b);
 
-    //       for (let fromIdx = 0; fromIdx < weightVec.length; fromIdx++) {
-    //         const weight = weightVec[fromIdx];
-    //         if (weight !== undefined && weight !== null) {
+    //     for (const neuronIdx of neuronIndices) {
+    //       const neuron = layer[neuronIdx];
+    //       const targetId = nodeIdMap[layerIdx][neuronIdx];
+
+    //       // Fast path for dense weight matrices
+    //       if (neuron.weights && Object.keys(neuron.weights).length === prevLayerSize) {
+    //         for (let inputIdx = 0; inputIdx < prevLayerSize; inputIdx++) {
+    //           if (neuron.weights[inputIdx] !== undefined) {
+    //             graph.links.push({
+    //               source: nodeIdMap[layerIdx-1][inputIdx],
+    //               target: targetId,
+    //               weight: neuron.weights[inputIdx]
+    //             });
+    //           }
+    //         }
+    //       }
+    //       // Slow path for sparse connections
+    //       else if (neuron.weights) {
+    //         for (const inputIdx of Object.keys(neuron.weights).map(Number)) {
     //           graph.links.push({
-    //             source: nodeIdMap[layerIdx - 1][fromIdx],
+    //             source: nodeIdMap[layerIdx-1][inputIdx],
     //             target: targetId,
-    //             weight
+    //             weight: neuron.weights[inputIdx]
     //           });
     //         }
     //       }
@@ -255,6 +191,69 @@ const RLHFBrain = () => {
 
     //   return graph;
     // }
+
+    // And this only works when running extension as is. Is it beause of the cdn version of brainjs being inherently different even though the version is the same?
+    generateGraphData() {
+      const json = net.toJSON();
+      const graph = { nodes: [], links: [] };
+      const nodeIdMap = {}; // layer -> index -> nodeId
+
+      const layerSizes = json.sizes;
+
+      // 1. Create nodes
+      for (let layerIdx = 0; layerIdx < layerSizes.length; layerIdx++) {
+        const count = layerSizes[layerIdx];
+        nodeIdMap[layerIdx] = {};
+        for (let neuronIdx = 0; neuronIdx < count; neuronIdx++) {
+          const id = graph.nodes.length;
+          nodeIdMap[layerIdx][neuronIdx] = id;
+
+          // Bias (if exists)
+          let bias = null;
+          let activation = 'relu';
+          const layer = json.layers[layerIdx];
+
+          if (layer && Array.isArray(layer.biases) && layer.biases[neuronIdx] != null) {
+            bias = layer.biases[neuronIdx];
+          }
+
+          if (layerIdx === 0) activation = 'input';
+          else if (layerIdx === layerSizes.length - 1) activation = 'output';
+
+          graph.nodes.push({
+            id,
+            layer: layerIdx,
+            neuron: neuronIdx,
+            bias,
+            activation
+          });
+        }
+      }
+
+      // 2. Create links
+      for (let layerIdx = 1; layerIdx < layerSizes.length; layerIdx++) {
+        const currentLayer = json.layers[layerIdx];
+        const weightsMatrix = currentLayer.weights;
+
+        for (let toIdx = 0; toIdx < weightsMatrix.length; toIdx++) {
+          const weightVec = weightsMatrix[toIdx];
+          const targetId = nodeIdMap[layerIdx][toIdx];
+
+          for (let fromIdx = 0; fromIdx < weightVec.length; fromIdx++) {
+            const weight = weightVec[fromIdx];
+            if (weight !== undefined && weight !== null) {
+              graph.links.push({
+                source: nodeIdMap[layerIdx - 1][fromIdx],
+                target: targetId,
+                weight
+              });
+            }
+          }
+        }
+      }
+
+      return graph;
+    }
 
 
   };

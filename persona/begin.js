@@ -21,34 +21,6 @@ const startPersonaMotion = async (arguments) => {
   }
 
   try {
-
-    const initialFunctionalState = {
-      toggleBrainViz: false
-    };
-    // const { container, canvas, inputManager } = await renderViewWindow({
-    //   storageData,
-    //   brainInstance,
-    //   buttonLayout: 'line-right', // or 'arc', 'line-top', etc.
-    //   promptPosition: 'top', // or 'bottom'
-    //   buttonSizePercent: 0.12, // relative to container size
-    //   execFunctions: [
-    //     () => {
-    //       $STATE.set('toggleBrainViz', !initialFunctionalState.toggleBrainViz);
-    //       initialFunctionalState.toggleBrainViz = !initialFunctionalState.toggleBrainViz;
-    //     },
-    //     () => {
-    //       $STATE.set('applyBrainFeedback', 1);
-    //     },
-    //     () => {
-    //       $STATE.set('applyBrainFeedback', -1);
-    //     },
-    //     () => {
-    //       const filterStyle = UTILITIES.randomInt(1, 16);
-    //       $STATE.set('switchFilterUp', filterStyle);
-    //     }
-    //   ],
-    //   ENV
-    // });
     const execFunctions = [
       () => {
         $STATE.set('toggleBrainViz', 'bulb');
@@ -65,6 +37,9 @@ const startPersonaMotion = async (arguments) => {
       () => {
         const style = UTILITIES.randomInt(1, 16);
         $STATE.set('switchFilterUp', style);
+      },
+      () => {
+        window.open();
       }
     ];
 
