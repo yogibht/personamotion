@@ -91,7 +91,7 @@ const startPersonaMotion = async (arguments) => {
       ENV
     });
 
-    const newWorld = await world({ storageData, brainInstance, canvas, modelURL, ENV });
+    const newWorld = await worldIllusion({ storageData, brainInstance, canvas, modelURL, ENV });
 
     $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
       // console.log(feedback);

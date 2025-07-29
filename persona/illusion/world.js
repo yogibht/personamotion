@@ -1,4 +1,4 @@
-const world = async (props) => {
+const worldIllusion = async (props) => {
   const { storageData, brainInstance, canvas, modelURL } = props;
 
   // Initialize renderer
@@ -54,20 +54,21 @@ const world = async (props) => {
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
   quad.frustumCulled = false;
 
-  const updateMaterial = (filterStyle) => {
+  const updatePostProcMaterial = (filterStyle) => {
     postMaterial = createPostProcessingShader({
       width: canvas.width,
       height: canvas.height,
       shader: filterStyle,
       colorMult: new THREE.Color(1.0, 1.0, 1.0)
     });
-    quad.material = postMaterial;
     postMaterial.needsUpdate = true;
+    quad.material = postMaterial;
   };
 
   postScene.add(quad);
 
   let networkViz, networkVizType, brainData;
+
   const switchBrainViz = (state) => {
     if (networkVizType === state) {
       networkVizType = undefined;
@@ -168,6 +169,17 @@ const world = async (props) => {
       $STATE.set('toggleUI', true);
     });
 
+    const render = (now) => {
+      renderer.setRenderTarget(renderTarget);
+      renderer.clear();
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+
+      postMaterial.uniforms.tDiffuse.value = renderTarget.texture;
+      postMaterial.uniforms.uTime.value = now;
+      renderer.render(postScene, postCamera);
+    }
+
     const clock = new THREE.Clock();
     anim = createAnimationLoop(
       { fps: 90 },
@@ -187,14 +199,7 @@ const world = async (props) => {
           }
         });
 
-        renderer.setRenderTarget(renderTarget);
-        renderer.clear();
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(null);
-
-        postMaterial.uniforms.tDiffuse.value = renderTarget.texture;
-        postMaterial.uniforms.uTime.value = performance.now() * 0.001;
-        renderer.render(postScene, postCamera);
+        render(performance.now() * 0.001);
       }
     );
     anim.start();
@@ -238,56 +243,55 @@ const world = async (props) => {
 
   $STATE.subscribe('containerNeedsUpdate', handleResize);
 
-  const getVoices = () => {
+  const getVoices = async () => {
     return new Promise((resolve) => {
       const voices = speechSynthesis.getVoices();
 
       if (voices.length > 0) {
         resolve(voices);
       } else {
-        const onVoicesChanged = () => {
+        speechSynthesis.addEventListener('voiceschanged', () => {
           const voices = speechSynthesis.getVoices();
-          if (voices.length > 0) {
-            speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
-            resolve(voices);
-          }
-        };
-        speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+          resolve(voices);
+        });
       }
     });
   };
 
   const initializeTTS = async () => {
-    const allAvailableVoices = await getVoices();
+    try {
+      const allAvailableVoices = await getVoices();
+      const selectedLanguage = 'en-US';
+      const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
+      const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea' || 'Google US English');
 
-    const selectedLanguage = 'en-US';
-    const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
-    const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea' || 'Google US English');
+      const voiceOptions = {
+        voice: selectedVoice,
+        rate: 0.8,
+        pitch: 1.05,
+        volume: 0.25,
+        ssml: true,
+        emphasis: 'strong',
+        breakAfter: 250,
+        onEnd: () => console.log('utterance ended')
+      };
 
-    const voiceOptions = {
-      voice: selectedVoice,
-      rate: 0.8,
-      pitch: 1.05,
-      volume: 0.25,
-      ssml: true,
-      emphasis: 'strong',
-      breakAfter: 250,
-      onEnd: () => console.log('utterance ended')
-    };
+      const tts = new NaturalTTS(selectedLanguage, voiceOptions);
 
-    const tts = new NaturalTTS(selectedLanguage, voiceOptions);
-
-    return { tts, voiceOptions };
+      return { tts, voiceOptions };
+    }
+    catch(err){
+      console.error(err);
+    }
   };
 
   const { tts, voiceOptions } = await initializeTTS();
 
-  const processAndAnimateLLMResponse = async (response) => {
-    const container = document.querySelector('#personamotion-responseContainer');
-    if (container && response.html) {
-      container.innerHTML = response.html;
-    }
-
+  const processAndAnimateLLMResponse = (response) => {
+    // const container = document.querySelector('#personamotion-responseContainer');
+    // if (container && response.html) {
+    //   container.innerHTML = response.html;
+    // }
     if (response.animationData) {
       const animData = response.animationData;
       animData.loop = (animData.options && animData.options.loop === 1) ? THREE.LoopOnce : THREE.LoopRepeat;
@@ -296,15 +300,16 @@ const world = async (props) => {
     }
   };
 
-
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
-  $STATE.subscribe('toggleBrainViz', switchBrainViz);
+  $STATE.subscribe('switchFilterUp', updatePostProcMaterial);
 
-  $STATE.subscribe('switchFilterUp', updateMaterial);
+  $STATE.subscribe('toggleBrainViz', switchBrainViz);
 
   return {
     three: { scene, camera, renderer },
     cleanup
   };
 };
+
+window.worldIllusion = worldIllusion;

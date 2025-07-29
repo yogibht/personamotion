@@ -153,20 +153,20 @@ const setupResponseHandler = (contentDiv) => {
   const VISIBLE_DURATION = 7000; // 7 seconds total visibility
   const FADE_DURATION = 1000; // 1 second fade out
 
-  $STATE.subscribe('promptResponse', (response) => {
-    if (!response?.html) return;
+  // $STATE.subscribe('promptResponse', (response) => {
+  //   // if (!response?.html) return;
 
-    // Create new response element
-    // const responseItem = document.createElement('div');
-    // responseItem.className = 'personamotion-responseItem';
-    // responseItem.innerHTML = response.html;
-    // responseContainer.appendChild(responseItem);
+  //   // Create new response element
+  //   // const responseItem = document.createElement('div');
+  //   // responseItem.className = 'personamotion-responseItem';
+  //   // responseItem.innerHTML = response.html;
+  //   // responseContainer.appendChild(responseItem);
 
-    responseContainer.innerHTML = response.html;
+  //   responseContainer.innerHTML = response.html;
 
-    // Scroll to show new content
-    responseContainer.scrollTop = responseContainer.scrollHeight;
-  });
+  //   // Scroll to show new content
+  //   responseContainer.scrollTop = responseContainer.scrollHeight;
+  // });
 
   // Cleanup function
   return () => {

@@ -1,4 +1,4 @@
-// Combined at 2025-07-28T08:37:30.016Z
+// Combined at 2025-07-29T18:32:10.894Z
 // 16 files
 
 
@@ -689,72 +689,134 @@ const RLHFBrain = () => {
       return net.run(input);
     },
 
+    // generateGraphData() {
+    //   const json = net.toJSON();
+    //   const graph = { nodes: [], links: [] };
+    //   const nodeIdMap = {}; // {layerIndex: {neuronIndex: graphNodeId}}
+    //   console.log(json);
+    //   // 1. Create all nodes with direct indexing
+    //   for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
+    //     const layer = json.layers[layerIdx];
+    //     nodeIdMap[layerIdx] = {};
+
+    //     // Get sorted neuron indices once
+    //     const neuronIndices = Object.keys(layer)
+    //       .filter(k => !isNaN(k))
+    //       .map(Number)
+    //       .sort((a,b) => a-b);
+
+    //     for (const neuronIdx of neuronIndices) {
+    //       const neuron = layer[neuronIdx];
+    //       const id = graph.nodes.length;
+
+    //       graph.nodes.push({
+    //         id,
+    //         layer: layerIdx,
+    //         neuron: neuronIdx,
+    //         bias: neuron.bias,
+    //         activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
+    //       });
+
+    //       nodeIdMap[layerIdx][neuronIdx] = id;
+    //     }
+    //   }
+
+    //   // 2. Create links with optimized weight processing
+    //   for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
+    //     const layer = json.layers[layerIdx];
+    //     const prevLayerSize = Object.keys(json.layers[layerIdx-1]).filter(k => !isNaN(k)).length;
+
+    //     // Process neurons in order
+    //     const neuronIndices = Object.keys(layer)
+    //       .filter(k => !isNaN(k))
+    //       .map(Number)
+    //       .sort((a,b) => a-b);
+
+    //     for (const neuronIdx of neuronIndices) {
+    //       const neuron = layer[neuronIdx];
+    //       const targetId = nodeIdMap[layerIdx][neuronIdx];
+
+    //       // Fast path for dense weight matrices
+    //       if (neuron.weights && Object.keys(neuron.weights).length === prevLayerSize) {
+    //         for (let inputIdx = 0; inputIdx < prevLayerSize; inputIdx++) {
+    //           if (neuron.weights[inputIdx] !== undefined) {
+    //             graph.links.push({
+    //               source: nodeIdMap[layerIdx-1][inputIdx],
+    //               target: targetId,
+    //               weight: neuron.weights[inputIdx]
+    //             });
+    //           }
+    //         }
+    //       }
+    //       // Slow path for sparse connections
+    //       else if (neuron.weights) {
+    //         for (const inputIdx of Object.keys(neuron.weights).map(Number)) {
+    //           graph.links.push({
+    //             source: nodeIdMap[layerIdx-1][inputIdx],
+    //             target: targetId,
+    //             weight: neuron.weights[inputIdx]
+    //           });
+    //         }
+    //       }
+    //     }
+    //   }
+
+    //   return graph;
+    // }
+
     generateGraphData() {
       const json = net.toJSON();
       const graph = { nodes: [], links: [] };
-      const nodeIdMap = {}; // {layerIndex: {neuronIndex: graphNodeId}}
+      const nodeIdMap = {}; // layer -> index -> nodeId
 
-      // 1. Create all nodes with direct indexing
-      for (let layerIdx = 0; layerIdx < json.layers.length; layerIdx++) {
-        const layer = json.layers[layerIdx];
+      const layerSizes = json.sizes;
+
+      // 1. Create nodes
+      for (let layerIdx = 0; layerIdx < layerSizes.length; layerIdx++) {
+        const count = layerSizes[layerIdx];
         nodeIdMap[layerIdx] = {};
-
-        // Get sorted neuron indices once
-        const neuronIndices = Object.keys(layer)
-          .filter(k => !isNaN(k))
-          .map(Number)
-          .sort((a,b) => a-b);
-
-        for (const neuronIdx of neuronIndices) {
-          const neuron = layer[neuronIdx];
+        for (let neuronIdx = 0; neuronIdx < count; neuronIdx++) {
           const id = graph.nodes.length;
+          nodeIdMap[layerIdx][neuronIdx] = id;
+
+          // Bias (if exists)
+          let bias = null;
+          let activation = 'relu';
+          const layer = json.layers[layerIdx];
+
+          if (layer && Array.isArray(layer.biases) && layer.biases[neuronIdx] != null) {
+            bias = layer.biases[neuronIdx];
+          }
+
+          if (layerIdx === 0) activation = 'input';
+          else if (layerIdx === layerSizes.length - 1) activation = 'output';
 
           graph.nodes.push({
             id,
             layer: layerIdx,
             neuron: neuronIdx,
-            bias: neuron.bias,
-            activation: neuron.activation || (layerIdx === 0 ? 'input' : 'relu')
+            bias,
+            activation
           });
-
-          nodeIdMap[layerIdx][neuronIdx] = id;
         }
       }
 
-      // 2. Create links with optimized weight processing
-      for (let layerIdx = 1; layerIdx < json.layers.length; layerIdx++) {
-        const layer = json.layers[layerIdx];
-        const prevLayerSize = Object.keys(json.layers[layerIdx-1]).filter(k => !isNaN(k)).length;
+      // 2. Create links
+      for (let layerIdx = 1; layerIdx < layerSizes.length; layerIdx++) {
+        const currentLayer = json.layers[layerIdx];
+        const weightsMatrix = currentLayer.weights;
 
-        // Process neurons in order
-        const neuronIndices = Object.keys(layer)
-          .filter(k => !isNaN(k))
-          .map(Number)
-          .sort((a,b) => a-b);
+        for (let toIdx = 0; toIdx < weightsMatrix.length; toIdx++) {
+          const weightVec = weightsMatrix[toIdx];
+          const targetId = nodeIdMap[layerIdx][toIdx];
 
-        for (const neuronIdx of neuronIndices) {
-          const neuron = layer[neuronIdx];
-          const targetId = nodeIdMap[layerIdx][neuronIdx];
-
-          // Fast path for dense weight matrices
-          if (neuron.weights && Object.keys(neuron.weights).length === prevLayerSize) {
-            for (let inputIdx = 0; inputIdx < prevLayerSize; inputIdx++) {
-              if (neuron.weights[inputIdx] !== undefined) {
-                graph.links.push({
-                  source: nodeIdMap[layerIdx-1][inputIdx],
-                  target: targetId,
-                  weight: neuron.weights[inputIdx]
-                });
-              }
-            }
-          }
-          // Slow path for sparse connections
-          else if (neuron.weights) {
-            for (const inputIdx of Object.keys(neuron.weights).map(Number)) {
+          for (let fromIdx = 0; fromIdx < weightVec.length; fromIdx++) {
+            const weight = weightVec[fromIdx];
+            if (weight !== undefined && weight !== null) {
               graph.links.push({
-                source: nodeIdMap[layerIdx-1][inputIdx],
+                source: nodeIdMap[layerIdx - 1][fromIdx],
                 target: targetId,
-                weight: neuron.weights[inputIdx]
+                weight
               });
             }
           }
@@ -763,6 +825,7 @@ const RLHFBrain = () => {
 
       return graph;
     }
+
 
   };
 };
@@ -1189,7 +1252,6 @@ const callAncestors = async (data) => {
     });
 
     let processedcall = JSON.parse(homecall);
-
     let response_text = '';
     if (selectedThirdBrain === 'GEMINI') {
       response_text = processedcall?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -1296,8 +1358,6 @@ const callAncestors = async (data) => {
 const initiateRightBrain = async () => {
   const globalData = {
     containerNeedsUpdate: true,
-    containerHeight: 0,
-    containerWidth: 0,
     toggleUI: false
   };
 
@@ -3061,7 +3121,7 @@ window.DUMMY_DATA = DUMMY_DATA;
 
 
 // ====== world.js ======
-const world = async (props) => {
+const worldIllusion = async (props) => {
   const { storageData, brainInstance, canvas, modelURL } = props;
 
   // Initialize renderer
@@ -3117,20 +3177,21 @@ const world = async (props) => {
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
   quad.frustumCulled = false;
 
-  const updateMaterial = (filterStyle) => {
+  const updatePostProcMaterial = (filterStyle) => {
     postMaterial = createPostProcessingShader({
       width: canvas.width,
       height: canvas.height,
       shader: filterStyle,
       colorMult: new THREE.Color(1.0, 1.0, 1.0)
     });
-    quad.material = postMaterial;
     postMaterial.needsUpdate = true;
+    quad.material = postMaterial;
   };
 
   postScene.add(quad);
 
   let networkViz, networkVizType, brainData;
+
   const switchBrainViz = (state) => {
     if (networkVizType === state) {
       networkVizType = undefined;
@@ -3231,6 +3292,17 @@ const world = async (props) => {
       $STATE.set('toggleUI', true);
     });
 
+    const render = (now) => {
+      renderer.setRenderTarget(renderTarget);
+      renderer.clear();
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+
+      postMaterial.uniforms.tDiffuse.value = renderTarget.texture;
+      postMaterial.uniforms.uTime.value = now;
+      renderer.render(postScene, postCamera);
+    }
+
     const clock = new THREE.Clock();
     anim = createAnimationLoop(
       { fps: 90 },
@@ -3250,14 +3322,7 @@ const world = async (props) => {
           }
         });
 
-        renderer.setRenderTarget(renderTarget);
-        renderer.clear();
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(null);
-
-        postMaterial.uniforms.tDiffuse.value = renderTarget.texture;
-        postMaterial.uniforms.uTime.value = performance.now() * 0.001;
-        renderer.render(postScene, postCamera);
+        render(performance.now() * 0.001);
       }
     );
     anim.start();
@@ -3301,56 +3366,55 @@ const world = async (props) => {
 
   $STATE.subscribe('containerNeedsUpdate', handleResize);
 
-  const getVoices = () => {
+  const getVoices = async () => {
     return new Promise((resolve) => {
       const voices = speechSynthesis.getVoices();
 
       if (voices.length > 0) {
         resolve(voices);
       } else {
-        const onVoicesChanged = () => {
+        speechSynthesis.addEventListener('voiceschanged', () => {
           const voices = speechSynthesis.getVoices();
-          if (voices.length > 0) {
-            speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
-            resolve(voices);
-          }
-        };
-        speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+          resolve(voices);
+        });
       }
     });
   };
 
   const initializeTTS = async () => {
-    const allAvailableVoices = await getVoices();
+    try {
+      const allAvailableVoices = await getVoices();
+      const selectedLanguage = 'en-US';
+      const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
+      const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea' || 'Google US English');
 
-    const selectedLanguage = 'en-US';
-    const filteredVoices = allAvailableVoices.filter(data => data.lang === selectedLanguage);
-    const selectedVoice = filteredVoices.find(v => v.name === 'English (America)+Andrea' || 'Google US English');
+      const voiceOptions = {
+        voice: selectedVoice,
+        rate: 0.8,
+        pitch: 1.05,
+        volume: 0.25,
+        ssml: true,
+        emphasis: 'strong',
+        breakAfter: 250,
+        onEnd: () => console.log('utterance ended')
+      };
 
-    const voiceOptions = {
-      voice: selectedVoice,
-      rate: 0.8,
-      pitch: 1.05,
-      volume: 0.25,
-      ssml: true,
-      emphasis: 'strong',
-      breakAfter: 250,
-      onEnd: () => console.log('utterance ended')
-    };
+      const tts = new NaturalTTS(selectedLanguage, voiceOptions);
 
-    const tts = new NaturalTTS(selectedLanguage, voiceOptions);
-
-    return { tts, voiceOptions };
+      return { tts, voiceOptions };
+    }
+    catch(err){
+      console.error(err);
+    }
   };
 
   const { tts, voiceOptions } = await initializeTTS();
 
-  const processAndAnimateLLMResponse = async (response) => {
-    const container = document.querySelector('#personamotion-responseContainer');
-    if (container && response.html) {
-      container.innerHTML = response.html;
-    }
-
+  const processAndAnimateLLMResponse = (response) => {
+    // const container = document.querySelector('#personamotion-responseContainer');
+    // if (container && response.html) {
+    //   container.innerHTML = response.html;
+    // }
     if (response.animationData) {
       const animData = response.animationData;
       animData.loop = (animData.options && animData.options.loop === 1) ? THREE.LoopOnce : THREE.LoopRepeat;
@@ -3359,18 +3423,19 @@ const world = async (props) => {
     }
   };
 
-
   $STATE.subscribe('promptResponse', processAndAnimateLLMResponse);
 
-  $STATE.subscribe('toggleBrainViz', switchBrainViz);
+  $STATE.subscribe('switchFilterUp', updatePostProcMaterial);
 
-  $STATE.subscribe('switchFilterUp', updateMaterial);
+  $STATE.subscribe('toggleBrainViz', switchBrainViz);
 
   return {
     three: { scene, camera, renderer },
     cleanup
   };
 };
+
+window.worldIllusion = worldIllusion;
 
 
 // ====== matter.js ======
@@ -3696,29 +3761,50 @@ window.prepEntity = prepEntity;
 
 
 // ====== memory.js ======
-// Or is this conciousness??
-const StateManager = (() => {
-  const state = {};         // actual state values
-  const listeners = {};     // key: [callback, ...]
+class StateManager {
+  constructor(initialState = {}) {
+    // Initialize state from a property on the window object if it exists,
+    // otherwise use the provided initialState. This allows state to
+    // potentially persist across script reloads within the same page
+    // load, but not across full page navigations (for that, you'd use
+    // localStorage or sessionStorage).
+    this.state = window.__PERSISTENT_STATE__ || initialState;
+    this.listeners = {}; // key: [callback, ...]
+
+    // Attach this instance to the window object
+    // You can choose a more unique or namespaced key if needed
+    window.__PERSISTENT_STATE_MANAGER__ = this;
+    window.__PERSISTENT_STATE__ = this.state; // Keep the actual state object updated on window
+  }
 
   // Log helper
-  const log = (action, key, value, oldValue) => {
+  _log(action, key, value, oldValue) {
     // console.debug(`[State] ${action.toUpperCase()} →`, { key, value, oldValue });
-  };
+  }
 
-  const get = (key) => {
-    const value = state[key];
-    log('get', key, value);
+  /**
+   * Retrieves the value of a specific state key.
+   * @param {string} key - The key of the state to retrieve.
+   * @returns {*} The value associated with the key, or undefined if not found.
+   */
+  get(key) {
+    const value = this.state[key];
+    this._log('get', key, value);
     return value;
-  };
+  }
 
-  const set = (key, value) => {
-    const oldValue = state[key];
-    state[key] = value;
-    log('set', key, value, oldValue);
+  /**
+   * Sets the value for a given state key and notifies any listeners.
+   * @param {string} key - The key to set.
+   * @param {*} value - The new value for the key.
+   */
+  set(key, value) {
+    const oldValue = this.state[key];
+    this.state[key] = value;
+    this._log('set', key, value, oldValue);
 
-    if (listeners[key]) {
-      listeners[key].forEach(cb => {
+    if (this.listeners[key]) {
+      this.listeners[key].forEach(cb => {
         try {
           cb(value, oldValue);
         } catch (err) {
@@ -3726,23 +3812,32 @@ const StateManager = (() => {
         }
       });
     }
-  };
+  }
 
-  const toggle = (key) => {
-    const newValue = !state[key];
-    set(key, newValue);
+  /**
+   * Toggles a boolean state value. If the key doesn't exist, it will be set to true.
+   * @param {string} key - The key of the boolean state to toggle.
+   * @returns {boolean} The new boolean value.
+   */
+  toggle(key) {
+    const newValue = !this.state[key];
+    this.set(key, newValue);
     return newValue;
-  };
+  }
 
-  const remove = (key) => {
-    const oldValue = state[key];
-    if (key in state) {
-      delete state[key];
-      log('remove', key, undefined, oldValue);
-      if (listeners[key]) {
-        listeners[key].forEach(cb => {
+  /**
+   * Removes a key-value pair from the state and notifies listeners.
+   * @param {string} key - The key to remove.
+   */
+  remove(key) {
+    const oldValue = this.state[key];
+    if (key in this.state) {
+      delete this.state[key];
+      this._log('remove', key, undefined, oldValue);
+      if (this.listeners[key]) {
+        this.listeners[key].forEach(cb => {
           try {
-            cb(undefined, oldValue);
+            cb(undefined, oldValue); // Notify listeners that the value is now undefined
           } catch (err) {
             console.warn(`[State] remove listener for "${key}" threw:`, err);
           }
@@ -3751,29 +3846,39 @@ const StateManager = (() => {
     } else {
       console.debug(`[State] remove skipped (not found): "${key}"`);
     }
-  };
+  }
 
-  const getAll = () => {
-    log('getAll', '*', { ...state });
-    return { ...state };
-  };
+  /**
+   * Returns a copy of the entire state object.
+   * @returns {object} A shallow copy of the current state.
+   */
+  getAll() {
+    this._log('getAll', '*', { ...this.state });
+    return { ...this.state };
+  }
 
-  const subscribe = (key, callback) => {
-    if (!listeners[key]) listeners[key] = [];
-    listeners[key].push(callback);
-    log('subscribe', key, callback.toString());
+  /**
+   * Subscribes a callback function to changes for a specific state key.
+   * The callback will receive the new value and the old value as arguments.
+   * @param {string} key - The state key to subscribe to.
+   * @param {function(newValue: *, oldValue: *): void} callback - The function to call when the state changes.
+   * @returns {function(): void} An unsubscribe function to stop listening.
+   */
+  subscribe(key, callback) {
+    if (!this.listeners[key]) {
+      this.listeners[key] = [];
+    }
+    this.listeners[key].push(callback);
+    this._log('subscribe', key, callback.toString());
 
-    // Return unsubscribe function
+    // Return an unsubscribe function specific to this subscription
     return () => {
-      listeners[key] = listeners[key].filter(cb => cb !== callback);
-      log('unsubscribe', key, callback.toString());
+      this.listeners[key] = this.listeners[key].filter(cb => cb !== callback);
+      this._log('unsubscribe', key, callback.toString());
     };
-  };
-
-  return { get, set, toggle, remove, getAll, subscribe };
-})();
-
-window.$STATE = StateManager;
+  }
+}
+window.$STATE = new StateManager();
 
 
 // ====== dna.js ======
@@ -3982,20 +4087,20 @@ const setupResponseHandler = (contentDiv) => {
   const VISIBLE_DURATION = 7000; // 7 seconds total visibility
   const FADE_DURATION = 1000; // 1 second fade out
 
-  $STATE.subscribe('promptResponse', (response) => {
-    if (!response?.html) return;
+  // $STATE.subscribe('promptResponse', (response) => {
+  //   // if (!response?.html) return;
 
-    // Create new response element
-    // const responseItem = document.createElement('div');
-    // responseItem.className = 'personamotion-responseItem';
-    // responseItem.innerHTML = response.html;
-    // responseContainer.appendChild(responseItem);
+  //   // Create new response element
+  //   // const responseItem = document.createElement('div');
+  //   // responseItem.className = 'personamotion-responseItem';
+  //   // responseItem.innerHTML = response.html;
+  //   // responseContainer.appendChild(responseItem);
 
-    responseContainer.innerHTML = response.html;
+  //   responseContainer.innerHTML = response.html;
 
-    // Scroll to show new content
-    responseContainer.scrollTop = responseContainer.scrollHeight;
-  });
+  //   // Scroll to show new content
+  //   responseContainer.scrollTop = responseContainer.scrollHeight;
+  // });
 
   // Cleanup function
   return () => {
@@ -4274,7 +4379,7 @@ const startPersonaMotion = async (arguments) => {
       ENV
     });
 
-    const newWorld = await world({ storageData, brainInstance, canvas, modelURL, ENV });
+    const newWorld = await worldIllusion({ storageData, brainInstance, canvas, modelURL, ENV });
 
     $STATE.subscribe('applyBrainFeedback', (feedback = 0) => {
       // console.log(feedback);
