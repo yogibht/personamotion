@@ -288,10 +288,10 @@ const worldIllusion = async (props) => {
   const { tts, voiceOptions } = await initializeTTS();
 
   const processAndAnimateLLMResponse = (response) => {
-    // const container = document.querySelector('#personamotion-responseContainer');
-    // if (container && response.html) {
-    //   container.innerHTML = response.html;
-    // }
+    const container = document.querySelector('#personamotion-responseContainer');
+    if (container && response.html) {
+      container.innerHTML = response.html;
+    }
     if (response.animationData) {
       const animData = response.animationData;
       animData.loop = (animData.options && animData.options.loop === 1) ? THREE.LoopOnce : THREE.LoopRepeat;

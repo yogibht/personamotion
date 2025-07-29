@@ -1,9 +1,3 @@
-// right.js – full revised file with dual IK / BAKED animation pipelines
-// -------------------------------------------------------------------
-
-// IMPORTANT: Ensure THREE.js is loaded and accessible globally
-// or passed into modules as needed. This script assumes THREE is available.
-
 // ========= 1. BONE DATA (unchanged) =========================================
 const BONE_DATA = [
   {
@@ -384,7 +378,6 @@ const callAncestors = async (data) => {
       URL: data.ENV.API[selectedThirdBrain].url,
       model: selectedThirdBrain
     });
-
     let processedcall = JSON.parse(homecall);
     let response_text = '';
     if (selectedThirdBrain === 'GEMINI') {
