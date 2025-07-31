@@ -153,21 +153,6 @@ const setupResponseHandler = (contentDiv) => {
   const VISIBLE_DURATION = 7000; // 7 seconds total visibility
   const FADE_DURATION = 1000; // 1 second fade out
 
-  // $STATE.subscribe('promptResponse', (response) => {
-  //   // if (!response?.html) return;
-
-  //   // Create new response element
-  //   // const responseItem = document.createElement('div');
-  //   // responseItem.className = 'personamotion-responseItem';
-  //   // responseItem.innerHTML = response.html;
-  //   // responseContainer.appendChild(responseItem);
-
-  //   responseContainer.innerHTML = response.html;
-
-  //   // Scroll to show new content
-  //   responseContainer.scrollTop = responseContainer.scrollHeight;
-  // });
-
   // Cleanup function
   return () => {
     document.head.removeChild(style);
@@ -200,7 +185,14 @@ const setupWindow = async (options) => {
     const clickMeSign = document.getElementById('personamotion-clickMeSign');
     if (firstClick) clickMeSign.style.display = 'none';
 
-    // Initialize canvas
+    if (UTILITIES.checkDeviceType() === 'desktop') {
+      container.style.width = '500px';
+      container.style.height = '500px';
+    }
+    else{
+      container.style.width = `${window.innerWidth}px`;
+      container.style.height = `${window.innerWidth}px`;
+    }
     canvas.width = container.clientWidth;
     canvas.height = container.clientHeight;
 

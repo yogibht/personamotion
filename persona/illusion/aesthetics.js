@@ -151,10 +151,11 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
         // The resolution must be passed in this specific format.
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
 
         // Get the UV coordinates for the current pixel.
         vec2 uv = gl_FragCoord.xy / resolution.xy;
@@ -169,8 +170,9 @@ const createPostProcessingShader = (props) => {
 
   const fragmentShaderText_grayscale_01 = `
     uniform sampler2D tDiffuse;
+    uniform vec2 uResolution;
     void main() {
-      vec2 uv = gl_FragCoord.xy / vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+      vec2 uv = gl_FragCoord.xy / uResolution;
       vec4 color = texture2D(tDiffuse, uv);
       float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
       gl_FragColor = vec4(vec3(gray) * ${glslColorMult}, color.a);
@@ -179,8 +181,9 @@ const createPostProcessingShader = (props) => {
 
   const fragmentShaderText_vignette_02 = `
     uniform sampler2D tDiffuse;
+    uniform vec2 uResolution;
       void main() {
-        vec2 uv = gl_FragCoord.xy / vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 uv = gl_FragCoord.xy / uResolution;
         vec4 color = texture2D(tDiffuse, uv);
 
         float dist = distance(uv, vec2(0.5));
@@ -195,8 +198,9 @@ const createPostProcessingShader = (props) => {
 
   const fragmentShaderText_scanlines_03 = `
     uniform sampler2D tDiffuse;
+    uniform vec2 uResolution;
       void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution;
 
         float chromaOffset = 1.0 / resolution.x;
@@ -217,8 +221,9 @@ const createPostProcessingShader = (props) => {
 
   const fragmentShaderText_edgeDetection_04 = `
     uniform sampler2D tDiffuse;
+    uniform vec2 uResolution;
       void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 texel = 1.0 / resolution;
         vec2 uv = gl_FragCoord.xy / resolution;
 
@@ -254,8 +259,9 @@ const createPostProcessingShader = (props) => {
 
   const fragmentShaderText_glow_05 = `
     uniform sampler2D tDiffuse;
+    uniform vec2 uResolution;
       void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution;
         vec4 base = texture2D(tDiffuse, uv);
 
@@ -283,6 +289,7 @@ const createPostProcessingShader = (props) => {
 
   const fragmentShaderText_ASCII_06 = `
     uniform sampler2D tDiffuse;
+    uniform vec2 uResolution;
 
     float renderGlyph(vec2 uv, float glyphIndex) {
       // uv: local coords in cell (0..1)
@@ -305,7 +312,7 @@ const createPostProcessingShader = (props) => {
     }
 
     void main() {
-      vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+      vec2 resolution = uResolution;
       vec2 cellSize = vec2(8.0, 12.0); // size of one ASCII character
 
       // Block/cell UV
@@ -343,9 +350,10 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_buzzed_07 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
-    vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+    vec2 resolution = uResolution;
     vec2 uv = gl_FragCoord.xy / resolution;
 
         // Sample the framebuffer texture
@@ -374,6 +382,7 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_fireworks_08 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     // Simple random function
     float random(vec2 st) {
@@ -381,7 +390,7 @@ const createPostProcessingShader = (props) => {
     }
 
     void main() {
-    vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+    vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution;
 
         // Sample the original framebuffer
@@ -528,10 +537,11 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_pixelated_09 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
         // The resolution must be passed in this specific format.
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
 
         // =========================================================
         // === Variables to control the pixelation effect. Change these values.
@@ -596,10 +606,11 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_whoami_10 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
         // The resolution must be passed in this specific format.
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
 
         // =========================================================
         // === Variables to control the effect. Change these values.
@@ -656,10 +667,11 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_wavvy_11 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
         // The resolution must be passed in this specific format.
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
 
         // Get the UV coordinates for the current pixel.
         vec2 uv = gl_FragCoord.xy / resolution.xy;
@@ -700,9 +712,10 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_fluid_12 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution.xy;
 
         // Cell-based UV displacement grid
@@ -736,9 +749,10 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_bouncy_13 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution.xy;
 
         // Center UV around 0
@@ -782,9 +796,10 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_ethereal_14 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
 
     void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution.xy;
 
         // Looping progress (0 → 1 over 10 seconds)
@@ -828,6 +843,8 @@ const createPostProcessingShader = (props) => {
   const fragmentShaderText_dropletimpact_15 = `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uResolution;
+
     bool coloredRipples = false;
     bool enableCaustics = true;
 
@@ -849,7 +866,7 @@ const createPostProcessingShader = (props) => {
     }
 
     void main() {
-        vec2 resolution = vec2(${width.toFixed(1)}, ${height.toFixed(1)});
+        vec2 resolution = uResolution;
         vec2 uv = gl_FragCoord.xy / resolution.xy;
 
         // === Config ===
@@ -951,7 +968,8 @@ const createPostProcessingShader = (props) => {
   const postMaterial = new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
-      uTime: { value: 0.0 }
+      uTime: { value: 0.0 },
+      uResolution: { value: new THREE.Vector2(width, height) }
     },
     vertexShader: vertexShaderText,
     fragmentShader: fragShaders[shader]

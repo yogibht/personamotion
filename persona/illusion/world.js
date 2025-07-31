@@ -1,6 +1,29 @@
 const worldIllusion = async (props) => {
   const { storageData, brainInstance, canvas, modelURL } = props;
 
+  const adjustCanvasSize = () => {
+    const isMobile = UTILITIES.checkDeviceType() === 'mobile';
+
+    if (isMobile) {
+      // On mobile: make it square and as wide as screen
+      const size = Math.min(window.innerWidth, window.innerHeight);
+      canvas.style.width = `${size}px`;
+      canvas.style.height = `${size}px`;
+      canvas.width = size;
+      canvas.height = size;
+    } else {
+      // On desktop: use existing dimensions
+      const displayWidth = canvas.clientWidth;
+      const displayHeight = canvas.clientHeight;
+      if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+      }
+    }
+  };
+
+  adjustCanvasSize();
+
   // Initialize renderer
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -9,8 +32,7 @@ const worldIllusion = async (props) => {
     premultipliedAlpha: false
   });
   renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(canvas.width, canvas.height);
+  renderer.setSize(canvas.width, canvas.height, false);
   renderer.autoClear = false;
 
   // Scene setup
@@ -33,13 +55,16 @@ const worldIllusion = async (props) => {
   scene.add(light);
   scene.add(new THREE.AmbientLight(0x404040));
 
-  // Framebuffer / Render Target
-  const renderTarget = new THREE.WebGLRenderTarget(canvas.width, canvas.height, {
-    format: THREE.RGBAFormat,
-    type: THREE.UnsignedByteType,
-    depthBuffer: true,
-    stencilBuffer: false
-  });
+  const renderTarget = new THREE.WebGLRenderTarget(
+    canvas.width,
+    canvas.height,
+    {
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: true,
+      stencilBuffer: false
+    }
+  );
 
   // Postprocessing scene
   const postScene = new THREE.Scene();
@@ -57,7 +82,7 @@ const worldIllusion = async (props) => {
   const updatePostProcMaterial = (filterStyle) => {
     postMaterial = createPostProcessingShader({
       width: canvas.width,
-      height: canvas.height,
+      height: canvas.width,
       shader: filterStyle,
       colorMult: new THREE.Color(1.0, 1.0, 1.0)
     });
@@ -219,20 +244,28 @@ const worldIllusion = async (props) => {
   };
 
   const handleResize = () => {
-    const width = canvas.width;
-    const height = canvas.height;
+    adjustCanvasSize();
 
-    renderer.setSize(width, height);
-    camera.aspect = width / height;
+    renderer.setSize(canvas.width, canvas.height, false);
+
+    // Update camera aspect ratio
+    camera.aspect = canvas.width / canvas.height;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderTarget.setSize(width, height);
 
-    postMaterial.fragmentShader = postMaterial.fragmentShader.replace(
-      /vec2\((.*?)\)/,
-      `vec2(${width.toFixed(1)}, ${height.toFixed(1)})`
+    // Update render target
+    renderTarget.setSize(
+      canvas.width,
+      canvas.height
     );
-    postMaterial.needsUpdate = true;
+
+    // Update post-processing material
+    if (postMaterial) {
+      postMaterial.uniforms.uResolution.value.set(
+        canvas.width,
+        canvas.height
+      );
+      postMaterial.needsUpdate = true;
+    }
 
     renderer.clear();
     renderer.render(scene, camera);
